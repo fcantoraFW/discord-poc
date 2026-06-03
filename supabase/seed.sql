@@ -1,0 +1,2 @@
+-- Run after your first signup to become super-admin:
+-- update public.profiles set role = 'superadmin' where email = 'you@example.com';
