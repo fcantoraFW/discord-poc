@@ -15,16 +15,18 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
+  const appUrl = getAppUrl(request);
+
   if (error || !code || !state) {
-    return NextResponse.redirect(`${getAppUrl()}/settings?discord=error`);
+    return NextResponse.redirect(`${appUrl}/settings?discord=error`);
   }
 
   const flow = await verifyOAuthState(state);
   if (!flow) {
-    return NextResponse.redirect(`${getAppUrl()}/settings?discord=invalid_state`);
+    return NextResponse.redirect(`${appUrl}/settings?discord=invalid_state`);
   }
 
-  const redirectUri = `${getAppUrl()}/api/auth/discord/callback`;
+  const redirectUri = `${appUrl}/api/auth/discord/callback`;
 
   try {
     const token = await exchangeDiscordCode({ code, redirectUri });
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
         (g) => g.owner || (BigInt(g.permissions) & BigInt(0x20)) === BigInt(0x20),
       );
       await cacheGuilds(adminGuilds);
-      return NextResponse.redirect(`${getAppUrl()}/admin/discord?guilds=1`);
+      return NextResponse.redirect(`${appUrl}/admin/discord?guilds=1`);
     }
 
     const profile = await requireProfile();
@@ -51,11 +53,11 @@ export async function GET(request: Request) {
       .eq("id", profile.id);
 
     if (updateError) {
-      return NextResponse.redirect(`${getAppUrl()}/settings?discord=save_error`);
+      return NextResponse.redirect(`${appUrl}/settings?discord=save_error`);
     }
 
-    return NextResponse.redirect(`${getAppUrl()}/settings?discord=connected`);
+    return NextResponse.redirect(`${appUrl}/settings?discord=connected`);
   } catch {
-    return NextResponse.redirect(`${getAppUrl()}/settings?discord=error`);
+    return NextResponse.redirect(`${appUrl}/settings?discord=error`);
   }
 }

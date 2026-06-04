@@ -79,10 +79,22 @@ function registerHandlers(bot: Chat) {
         return;
       }
 
-      const member = await getProfileByDiscordUserId(
+      let member = await getProfileByDiscordUserId(
         message.author.userId,
         link.organization_id,
       );
+
+      if (!member) {
+        const admin = createAdminClient();
+        const { data: superProfile } = await admin
+          .from("profiles")
+          .select("*")
+          .eq("discord_user_id", message.author.userId)
+          .eq("role", "superadmin")
+          .maybeSingle();
+        member = (superProfile as Profile | null) ?? null;
+      }
+
       if (!member) {
         await thread.post(REJECT_MESSAGE);
         return;

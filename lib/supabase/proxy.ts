@@ -52,6 +52,7 @@ export async function updateSession(request: NextRequest) {
     path === "/" ||
     path.startsWith("/auth") ||
     path.startsWith("/api/webhooks/") ||
+    path.startsWith("/api/discord/") ||
     path.startsWith("/api/auth/discord/");
 
   if (!user && !isPublic) {

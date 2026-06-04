@@ -12,8 +12,59 @@ export function getDiscordClientSecret(): string {
   return secret;
 }
 
-export function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+function isLocalhost(url: string): boolean {
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function appUrlFromRequest(request: Request): string | null {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = (forwardedHost ?? request.headers.get("host"))?.split(",")[0]?.trim();
+  if (!host) return null;
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
+    (host.includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/** Public app origin for OAuth redirects. Prefer explicit env; auto-detect on Vercel. */
+export function getAppUrl(request?: Request): string {
+  if (request) {
+    const fromRequest = appUrlFromRequest(request);
+    if (fromRequest && !isLocalhost(fromRequest)) {
+      return stripTrailingSlash(fromRequest);
+    }
+  }
+
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured && !isLocalhost(configured)) {
+    return stripTrailingSlash(configured);
+  }
+
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (productionHost && process.env.VERCEL_ENV === "production") {
+    const url = productionHost.startsWith("http")
+      ? productionHost
+      : `https://${productionHost}`;
+    return stripTrailingSlash(url);
+  }
+
+  const vercelHost = process.env.VERCEL_URL?.trim();
+  if (vercelHost) {
+    const url = vercelHost.startsWith("http") ? vercelHost : `https://${vercelHost}`;
+    return stripTrailingSlash(url);
+  }
+
+  if (configured) return stripTrailingSlash(configured);
+  return "http://localhost:3000";
 }
 
 export function discordAuthorizeUrl(options: {
