@@ -120,6 +120,12 @@ export async function POST(request: Request) {
         controller.close();
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
+        if (msg.includes("branch") || msg.includes("repository")) {
+          await admin
+            .from("conversations")
+            .update({ cursor_agent_id: null })
+            .eq("id", conversation.id);
+        }
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`),
         );

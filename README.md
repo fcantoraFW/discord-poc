@@ -39,8 +39,9 @@ where email = 'tu@email.com';
 ### 3. Cursor
 
 1. Creá una API key en [Cursor Integrations](https://cursor.com/dashboard/integrations).
-2. Subí este repo a GitHub y configurá `CURSOR_CLOUD_REPO=owner/repo`.
-3. La cuenta de la API key debe tener acceso al repo.
+2. Subí este repo a GitHub y configurá `CURSOR_CLOUD_REPO=owner/repo` y `CURSOR_CLOUD_REF=main`.
+3. En [Cursor Integrations](https://cursor.com/dashboard/integrations): conectá **GitHub** y autorizá el repo `fcantoraFW/discord-poc` (si no aparece en la lista de Cursor, Cloud Agent falla aunque el repo sea público).
+4. `CURSOR_CLOUD_REF=main` (rama default del repo).
 
 ### 4. Discord
 
@@ -62,8 +63,12 @@ Creá una base en [Upstash](https://upstash.com) y poné la URL en `REDIS_URL` o
 
 ```bash
 pnpm install
+# Compila sqlite3 (requerido por @cursor/sdk). Si el chat falla con "bindings file":
+node scripts/ensure-native-deps.mjs
 pnpm dev
 ```
+
+**Importante:** no subas `.env.local` a GitHub (contiene secrets). Si ya lo commiteaste, borralo del historial y rotá todas las keys.
 
 ## Flujos
 

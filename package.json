@@ -4,7 +4,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "node scripts/ensure-native-deps.mjs"
   },
   "dependencies": {
     "@chat-adapter/discord": "^4.30.0",
