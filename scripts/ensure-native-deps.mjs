@@ -17,29 +17,6 @@ function findPnpmPackageDir(packageName) {
   return existsSync(join(dir, "package.json")) ? dir : null;
 }
 
-function hasSqliteBinding(sqliteDir) {
-  const candidates = [
-    join(sqliteDir, "build", "Release", "node_sqlite3.node"),
-    join(sqliteDir, "lib", "binding", "node-v137-darwin-arm64", "node_sqlite3.node"),
-  ];
-  return candidates.some(existsSync);
-}
-
-function buildSqlite3() {
-  const dir = findPnpmPackageDir("sqlite3");
-  if (!dir) {
-    console.warn("[ensure-native-deps] sqlite3 not found in node_modules/.pnpm — run pnpm install first");
-    return false;
-  }
-  if (hasSqliteBinding(dir)) {
-    console.log("[ensure-native-deps] sqlite3 binding already present");
-    return true;
-  }
-  console.log("[ensure-native-deps] building sqlite3 at", dir);
-  execSync("npm run install", { cwd: dir, stdio: "inherit" });
-  return hasSqliteBinding(dir);
-}
-
 function buildZlibSync() {
   const dir = findPnpmPackageDir("zlib-sync");
   if (!dir) {
@@ -60,13 +37,8 @@ function buildZlibSync() {
   return existsSync(binding);
 }
 
-const sqliteOk = buildSqlite3();
 const zlibOk = buildZlibSync();
 
-if (!sqliteOk) {
-  console.error("[ensure-native-deps] FAILED: sqlite3 is required for @cursor/sdk");
-  process.exit(1);
-}
 if (!zlibOk) {
   console.warn("[ensure-native-deps] zlib-sync build failed — Discord may warn in dev");
 }

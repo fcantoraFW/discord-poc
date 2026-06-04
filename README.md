@@ -1,4 +1,4 @@
-REDIS_URL="rediss://default_ro:[ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io](mailto:ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default_ro:[ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io](mailto:ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"asdfsdfsdfsfsdfdsdfsdfsfdsfsdfdfdfdfdfdfdfdfddfdfddfdfdffdfdfdfdfdfdsdssdsdsdsds# Flywheel — Discord + Cursor PoC
+# Flywheel — Discord + Cursor PoC
 
 PoC interno: chat web con agentes **Cursor Cloud** por organización, y bot de **Discord** (Vercel Chat SDK) que responde solo a members registrados.
 
@@ -6,7 +6,7 @@ PoC interno: chat web con agentes **Cursor Cloud** por organización, y bot de *
 
 - Next.js App Router + TypeScript
 - Supabase (Auth, Postgres, RLS)
-- `@cursor/sdk` (Cloud agents, repo compartido)
+- Cursor Cloud Agents REST API (`lib/cursor/cloud-client.ts`, sin dependencias nativas)
 - `chat` + `@chat-adapter/discord` + Redis/memory state
 
 ## Setup rápido
@@ -63,7 +63,7 @@ Creá una base en [Upstash](https://upstash.com) y poné la URL en `REDIS_URL` o
 
 ```bash
 pnpm install
-# Compila sqlite3 (requerido por @cursor/sdk). Si el chat falla con "bindings file":
+# Opcional: compila zlib-sync para Discord en local
 node scripts/ensure-native-deps.mjs
 pnpm dev
 ```
@@ -102,7 +102,8 @@ app/(app)/chat          — UI member
 app/(admin)/admin       — CRUD orgs / assistants / Discord
 app/api/chat            — streaming SSE + historial
 app/api/webhooks/discord
-lib/cursor/agent.ts     — Cursor Cloud
+lib/cursor/agent.ts     — Cursor Cloud (HTTP)
+lib/cursor/cloud-client.ts
 lib/chat/pipeline.ts    — mensajes web + Discord
 lib/discord/bot.ts      — Chat SDK handlers
 supabase/migrations/

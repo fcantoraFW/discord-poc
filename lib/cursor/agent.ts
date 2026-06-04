@@ -1,4 +1,13 @@
 import { buildFullPrompt, type AssistantPromptContext } from "./prompt";
+import {
+  createAgent,
+  createRun,
+  getAgent,
+  getRun,
+  listRepositories,
+  streamRun,
+  type V1Repository,
+} from "./cloud-client";
 
 const MODEL_ID = "composer-2.5";
 
@@ -20,15 +29,12 @@ function cloudBranchRef(): string {
   return process.env.CURSOR_CLOUD_REF?.trim() || "main";
 }
 
-/** Cursor only accepts repos linked to the API key account. */
-async function resolveCloudRepo(): Promise<{ url: string; branch: string }> {
-  const { Cursor } = await loadSdk();
-  const apiKey = getApiKey();
+async function resolveMatchedRepoUrl(apiKey: string): Promise<string> {
   const repoSpec = process.env.CURSOR_CLOUD_REPO?.trim();
   if (!repoSpec) throw new Error("CURSOR_CLOUD_REPO is not set (owner/repo)");
 
   const target = normalizeRepoSpec(repoSpec);
-  const connected = await Cursor.repositories.list({ apiKey });
+  const connected = await listRepositories(apiKey);
 
   const match = connected.find((r) => {
     const normalized = normalizeRepoSpec(r.url);
@@ -55,65 +61,134 @@ async function resolveCloudRepo(): Promise<{ url: string; branch: string }> {
     );
   }
 
-  return { url: match.url, branch: cloudBranchRef() };
+  return match.url;
 }
 
-type CloudRepoEntry = { url: string; startingRef?: string };
-
-async function createCloudAgent(apiKey: string, repo: { url: string; branch: string }) {
-  const attempts: CloudRepoEntry[][] = [
-    [{ url: repo.url, startingRef: repo.branch }],
-    [{ url: repo.url }],
+function repoCreateAttempts(repoUrl: string): V1Repository[][] {
+  const branch = cloudBranchRef();
+  return [
+    [{ url: repoUrl, startingRef: branch }],
+    [{ url: repoUrl }],
   ];
+}
 
-  let lastError: unknown;
-  for (let i = 0; i < attempts.length; i++) {
-    const repos = attempts[i]!;
+async function waitForRunIdle(
+  apiKey: string,
+  agentId: string,
+  runId: string,
+  maxMs = 120_000,
+): Promise<void> {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    const run = await getRun(apiKey, agentId, runId);
+    if (
+      run.status === "FINISHED" ||
+      run.status === "ERROR" ||
+      run.status === "CANCELLED" ||
+      run.status === "EXPIRED"
+    ) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error("Cursor agent busy: timed out waiting for previous run");
+}
+
+async function startRun(
+  apiKey: string,
+  cursorAgentId: string | null,
+  promptText: string,
+): Promise<{ agentId: string; runId: string }> {
+  if (cursorAgentId) {
     try {
-      const { Agent } = await loadSdk();
-      return await Agent.create({
-        apiKey,
+      const { run } = await createRun(apiKey, cursorAgentId, {
+        prompt: { text: promptText },
         model: { id: MODEL_ID },
-        cloud: { repos },
       });
+      return { agentId: cursorAgentId, runId: run.id };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("agent_busy") && !msg.includes("409")) throw err;
+      const agent = await getAgent(apiKey, cursorAgentId);
+      if (agent.latestRunId) {
+        await waitForRunIdle(apiKey, cursorAgentId, agent.latestRunId);
+      }
+      const { run } = await createRun(apiKey, cursorAgentId, {
+        prompt: { text: promptText },
+        model: { id: MODEL_ID },
+      });
+      return { agentId: cursorAgentId, runId: run.id };
+    }
+  }
+
+  const repoUrl = await resolveMatchedRepoUrl(apiKey);
+  let lastError: unknown;
+
+  for (const repos of repoCreateAttempts(repoUrl)) {
+    try {
+      const { agent, run } = await createAgent(apiKey, {
+        prompt: { text: promptText },
+        model: { id: MODEL_ID },
+        repos,
+      });
+      return { agentId: agent.id, runId: run.id };
     } catch (err) {
       lastError = err;
-      const msg = formatCursorError(err);
+      const msg = err instanceof Error ? err.message : String(err);
       const retryable =
         msg.includes("branch") ||
         msg.includes("default branch") ||
         msg.includes("repository");
-      if (!retryable || i === attempts.length - 1) throw err;
+      if (!retryable) throw err;
     }
   }
 
   throw lastError;
 }
 
-async function loadSdk() {
-  return import("@cursor/sdk");
-}
+async function consumeRunStream(options: {
+  apiKey: string;
+  agentId: string;
+  runId: string;
+  onChunk?: (text: string) => void;
+}): Promise<string> {
+  let text = "";
+  let terminalStatus: string | undefined;
 
-function formatCursorError(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as { message: unknown }).message);
+  for await (const { event, data } of streamRun(
+    options.apiKey,
+    options.agentId,
+    options.runId,
+  )) {
+    if (event === "assistant" && data && typeof data === "object" && "text" in data) {
+      const delta = String((data as { text: string }).text);
+      text += delta;
+      options.onChunk?.(delta);
+    }
+    if (event === "result" && data && typeof data === "object") {
+      const result = data as { status?: string; text?: string };
+      terminalStatus = result.status;
+      if (result.text) text = result.text;
+    }
+    if (event === "error" && data && typeof data === "object" && "message" in data) {
+      throw new Error(String((data as { message: string }).message));
+    }
   }
-  return String(err);
-}
 
-async function openAgent(cursorAgentId: string | null) {
-  const { Agent } = await loadSdk();
-  const apiKey = getApiKey();
-
-  if (cursorAgentId) {
-    return Agent.resume(cursorAgentId, {
-      apiKey,
-      model: { id: MODEL_ID },
-    });
+  if (terminalStatus === "ERROR") {
+    const run = await getRun(options.apiKey, options.agentId, options.runId);
+    throw new Error(`Cursor run failed: ${run.status}`);
   }
 
-  const repo = await resolveCloudRepo();
-  return createCloudAgent(apiKey, repo);
+  if (!text) {
+    const run = await getRun(options.apiKey, options.agentId, options.runId);
+    if (run.status === "ERROR") {
+      throw new Error(`Cursor run failed: ${run.status}`);
+    }
+    if (run.result) text = run.result;
+  }
+
+  return text;
 }
 
 export async function collectAgentResponse(options: {
@@ -121,30 +196,17 @@ export async function collectAgentResponse(options: {
   promptContext: AssistantPromptContext;
   userMessage: string;
 }): Promise<{ agentId: string; text: string }> {
-  const { CursorAgentError } = await loadSdk();
+  const apiKey = getApiKey();
   const fullPrompt = buildFullPrompt(options.promptContext, options.userMessage);
 
   try {
-    await using agent = await openAgent(options.cursorAgentId);
-    const run = await agent.send(fullPrompt);
-    let text = "";
-    for await (const event of run.stream()) {
-      if (event.type === "assistant") {
-        for (const block of event.message.content) {
-          if (block.type === "text") text += block.text;
-        }
-      }
-    }
-    const result = await run.wait();
-    if (result.status === "error") {
-      throw new Error(`Cursor run failed: ${result.id}`);
-    }
-    return { agentId: agent.agentId, text };
+    const { agentId, runId } = await startRun(apiKey, options.cursorAgentId, fullPrompt);
+    const text = await consumeRunStream({ apiKey, agentId, runId });
+    return { agentId, text };
   } catch (err) {
-    if (err instanceof CursorAgentError) {
-      throw new Error(`Cursor startup failed: ${formatCursorError(err)}`);
-    }
-    throw err;
+    throw new Error(
+      `Cursor startup failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -154,32 +216,21 @@ export async function streamAgentResponse(options: {
   userMessage: string;
   onChunk: (text: string) => void;
 }): Promise<{ agentId: string; text: string }> {
-  const { CursorAgentError } = await loadSdk();
+  const apiKey = getApiKey();
   const fullPrompt = buildFullPrompt(options.promptContext, options.userMessage);
 
   try {
-    await using agent = await openAgent(options.cursorAgentId);
-    const run = await agent.send(fullPrompt);
-    let text = "";
-    for await (const event of run.stream()) {
-      if (event.type === "assistant") {
-        for (const block of event.message.content) {
-          if (block.type === "text") {
-            text += block.text;
-            options.onChunk(block.text);
-          }
-        }
-      }
-    }
-    const result = await run.wait();
-    if (result.status === "error") {
-      throw new Error(`Cursor run failed: ${result.id}`);
-    }
-    return { agentId: agent.agentId, text };
+    const { agentId, runId } = await startRun(apiKey, options.cursorAgentId, fullPrompt);
+    const text = await consumeRunStream({
+      apiKey,
+      agentId,
+      runId,
+      onChunk: options.onChunk,
+    });
+    return { agentId, text };
   } catch (err) {
-    if (err instanceof CursorAgentError) {
-      throw new Error(`Cursor startup failed: ${formatCursorError(err)}`);
-    }
-    throw err;
+    throw new Error(
+      `Cursor startup failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const maxDuration = 300;
 import { z } from "zod";
 import { getProfile } from "@/lib/auth/profile";
 import { loadAssistantBundle, getOrCreateConversation } from "@/lib/chat/pipeline";

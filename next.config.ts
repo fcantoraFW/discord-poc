@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: [
-    "@cursor/sdk",
     "chat",
     "@chat-adapter/discord",
     "@chat-adapter/state-redis",
