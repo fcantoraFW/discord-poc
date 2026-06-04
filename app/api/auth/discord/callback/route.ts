@@ -39,8 +39,16 @@ export async function GET(request: Request) {
       );
       await cacheGuilds(adminGuilds);
       const discordPath =
-        linker.role === "superadmin" ? "/admin/discord" : "/manage/discord";
-      return NextResponse.redirect(`${appUrl}${discordPath}?guilds=1`);
+        linker.role === "superadmin"
+          ? linker.organization_id
+            ? "/admin/discord"
+            : "/superadmin"
+          : "/manage/discord";
+      const query =
+        linker.role === "superadmin" && !linker.organization_id
+          ? "?tab=config&guilds=1"
+          : "?guilds=1";
+      return NextResponse.redirect(`${appUrl}${discordPath}${query}`);
     }
 
     const profile = await requireProfile();

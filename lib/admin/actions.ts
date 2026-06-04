@@ -27,7 +27,7 @@ export async function createOrganization(formData: FormData) {
     slug: slugify(name),
   });
   if (error) throw new Error(error.message);
-  revalidatePath("/admin");
+  revalidatePath("/superadmin");
 }
 
 export async function createAssistant(formData: FormData) {
@@ -48,8 +48,7 @@ export async function createAssistant(formData: FormData) {
   if (error) throw new Error(error.message);
 
   await refreshSlashCommandsForOrg(organizationId);
-  revalidatePath("/admin");
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
 }
 
 export async function inviteMember(formData: FormData) {
@@ -71,7 +70,7 @@ export async function inviteMember(formData: FormData) {
       .eq("id", data.user.id);
   }
 
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
 }
 
 export async function linkDiscordGuild(formData: FormData) {
@@ -92,7 +91,7 @@ export async function linkDiscordGuild(formData: FormData) {
   if (error) throw new Error(error.message);
 
   await registerGuildSlashCommands(guildId, organizationId);
-  revalidatePath("/admin/discord");
+  revalidatePath("/superadmin");
 }
 
 export async function assignMemberOrg(formData: FormData) {
@@ -107,5 +106,5 @@ export async function assignMemberOrg(formData: FormData) {
     .update({ organization_id: organizationId, role: "member" })
     .eq("id", profileId);
   if (error) throw new Error(error.message);
-  revalidatePath("/admin");
+  revalidatePath("/superadmin");
 }

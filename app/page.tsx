@@ -7,7 +7,7 @@ export default async function Home() {
     redirect("/auth/login");
   }
   if (profile.role === "superadmin") {
-    redirect("/admin");
+    redirect(profile.organization_id ? "/chat" : "/superadmin");
   }
   if (profile.role === "admin") {
     redirect("/manage");

@@ -39,7 +39,8 @@ export async function createOrgAssistant(formData: FormData) {
   await refreshSlashCommandsForOrg(organizationId);
   revalidatePath("/manage");
   revalidatePath("/manage/assistants");
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
+  revalidatePath("/admin");
 }
 
 export async function inviteOrgMember(formData: FormData) {
@@ -65,7 +66,8 @@ export async function inviteOrgMember(formData: FormData) {
 
   revalidatePath("/manage");
   revalidatePath("/manage/members");
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
+  revalidatePath("/admin");
 }
 
 export async function removeOrgMember(formData: FormData) {
@@ -119,6 +121,7 @@ export async function linkOrgDiscordGuild(formData: FormData) {
   revalidatePath("/manage");
   revalidatePath("/manage/discord");
   revalidatePath("/admin/discord");
+  revalidatePath("/superadmin");
 }
 
 export async function inviteOrgAdmin(formData: FormData) {
@@ -140,7 +143,8 @@ export async function inviteOrgAdmin(formData: FormData) {
       .eq("id", data.user.id);
   }
 
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
+  revalidatePath("/admin");
 }
 
 export async function promoteMemberToAdmin(formData: FormData) {
@@ -157,7 +161,8 @@ export async function promoteMemberToAdmin(formData: FormData) {
     .eq("organization_id", organizationId);
   if (error) throw new Error(error.message);
 
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
+  revalidatePath("/admin");
   revalidatePath("/manage");
 }
 
@@ -176,5 +181,6 @@ export async function demoteAdminToMember(formData: FormData) {
     .eq("role", "admin");
   if (error) throw new Error(error.message);
 
-  revalidatePath(`/admin/orgs/${organizationId}`);
+  revalidatePath("/superadmin");
+  revalidatePath("/admin");
 }

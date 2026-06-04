@@ -1,12 +1,12 @@
 import { AppNav } from "@/components/app-nav";
-import { requireSuperAdmin } from "@/lib/auth/profile";
+import { requireSuperAdminOrg } from "@/lib/auth/profile";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireSuperAdmin();
+  const profile = await requireSuperAdminOrg();
 
   return (
     <div className="min-h-screen flex flex-col">

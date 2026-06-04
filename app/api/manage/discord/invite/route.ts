@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireOrgAdmin } from "@/lib/auth/profile";
+import { requireDiscordGuildLinker } from "@/lib/auth/profile";
 import { botInviteUrl } from "@/lib/discord/oauth";
 
 export async function GET(request: Request) {
-  await requireOrgAdmin();
+  await requireDiscordGuildLinker();
   const guildId = new URL(request.url).searchParams.get("guild_id");
   if (!guildId) {
     return NextResponse.json({ error: "guild_id required" }, { status: 400 });

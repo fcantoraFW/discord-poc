@@ -49,6 +49,14 @@ export async function requireOrgAdmin(): Promise<Profile> {
   return profile;
 }
 
+/** Superadmin gestionando su propia organización en /admin. */
+export async function requireSuperAdminOrg(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (profile.role !== "superadmin") redirect("/chat");
+  if (!profile.organization_id) redirect("/superadmin");
+  return profile;
+}
+
 /** Superadmin or org admin — for Discord guild OAuth used in /manage and /admin/discord. */
 export async function requireDiscordGuildLinker(): Promise<Profile> {
   const profile = await requireProfile();

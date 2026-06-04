@@ -10,9 +10,19 @@ export function AppNav({ profile }: { profile: Profile }) {
           Flywheel PoC
         </Link>
         {profile.role === "superadmin" ? (
-          <Link href="/admin" className="text-muted-foreground hover:text-foreground">
-            Admin
-          </Link>
+          <>
+            <Link
+              href="/superadmin"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Superadmin
+            </Link>
+            {profile.organization_id ? (
+              <Link href="/admin" className="text-muted-foreground hover:text-foreground">
+                Admin
+              </Link>
+            ) : null}
+          </>
         ) : null}
         {profile.role === "admin" ? (
           <Link href="/manage" className="text-muted-foreground hover:text-foreground">
