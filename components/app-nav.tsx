@@ -14,6 +14,11 @@ export function AppNav({ profile }: { profile: Profile }) {
             Admin
           </Link>
         ) : null}
+        {profile.role === "admin" ? (
+          <Link href="/manage" className="text-muted-foreground hover:text-foreground">
+            Gestionar
+          </Link>
+        ) : null}
         <Link href="/chat" className="text-muted-foreground hover:text-foreground">
           Chat
         </Link>

@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createAssistant, inviteMember } from "@/lib/admin/actions";
+import { createAssistant } from "@/lib/admin/actions";
+import {
+  demoteAdminToMember,
+  inviteOrgAdmin,
+  inviteOrgMember,
+  promoteMemberToAdmin,
+  removeOrgMember,
+} from "@/lib/org/actions";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,13 +99,28 @@ export default async function OrgAdminPage({
 
       <section className="border rounded-lg p-4 space-y-3">
         <h2 className="font-semibold">Invitar member</h2>
-        <form action={inviteMember} className="flex gap-2 items-end">
+        <form action={inviteOrgMember} className="flex gap-2 items-end">
           <input type="hidden" name="organization_id" value={orgId} />
           <div className="flex-1 space-y-1">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required />
+            <Label htmlFor="member_email">Email</Label>
+            <Input id="member_email" name="email" type="email" required />
           </div>
           <Button type="submit">Invitar</Button>
+        </form>
+      </section>
+
+      <section className="border rounded-lg p-4 space-y-3">
+        <h2 className="font-semibold">Invitar org admin</h2>
+        <p className="text-xs text-muted-foreground">
+          Solo superadmin puede crear admins de org.
+        </p>
+        <form action={inviteOrgAdmin} className="flex gap-2 items-end">
+          <input type="hidden" name="organization_id" value={orgId} />
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="admin_email">Email</Label>
+            <Input id="admin_email" name="email" type="email" required />
+          </div>
+          <Button type="submit">Invitar admin</Button>
         </form>
       </section>
 
@@ -106,11 +128,46 @@ export default async function OrgAdminPage({
         <h2 className="font-semibold">Members</h2>
         <ul className="border rounded-lg divide-y text-sm">
           {(members ?? []).map((m) => (
-            <li key={m.id} className="px-4 py-2 flex justify-between">
-              <span>{m.email}</span>
-              <span className="text-muted-foreground text-xs">
-                {m.discord_user_id ? `Discord ${m.discord_user_id}` : "sin Discord"}
-              </span>
+            <li
+              key={m.id}
+              className="px-4 py-3 flex flex-wrap items-center justify-between gap-2"
+            >
+              <div>
+                <span>{m.email}</span>
+                <span className="text-muted-foreground text-xs ml-2">({m.role})</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground text-xs">
+                  {m.discord_user_id ? `Discord ${m.discord_user_id}` : "sin Discord"}
+                </span>
+                {m.role === "member" ? (
+                  <>
+                    <form action={promoteMemberToAdmin}>
+                      <input type="hidden" name="organization_id" value={orgId} />
+                      <input type="hidden" name="profile_id" value={m.id} />
+                      <Button type="submit" variant="outline" size="sm">
+                        Hacer admin
+                      </Button>
+                    </form>
+                    <form action={removeOrgMember}>
+                      <input type="hidden" name="organization_id" value={orgId} />
+                      <input type="hidden" name="profile_id" value={m.id} />
+                      <Button type="submit" variant="outline" size="sm">
+                        Quitar
+                      </Button>
+                    </form>
+                  </>
+                ) : null}
+                {m.role === "admin" ? (
+                  <form action={demoteAdminToMember}>
+                    <input type="hidden" name="organization_id" value={orgId} />
+                    <input type="hidden" name="profile_id" value={m.id} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Pasar a member
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
             </li>
           ))}
           {!members?.length ? (

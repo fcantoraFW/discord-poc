@@ -123,16 +123,17 @@ pnpm discord:gateway
 
 Dejar la terminal abierta mientras usás Discord.
 
-#### Producción sin Vercel Pro
+#### Producción
 
-| Opción | Notas |
-|--------|--------|
-| **A. Worker local** (`pnpm discord:gateway`) | Más simple; Mac encendida cuando usás el bot |
-| **B. GitHub Actions** | Secrets `APP_URL`, `CRON_SECRET` → `.github/workflows/discord-gateway.yml` (cada 5 min; puede haber huecos) |
-| **C. cron-job.org** | GET `https://TU-DOMINIO/api/discord/gateway` cada 1 min, header `Authorization: Bearer CRON_SECRET` |
-| **D. Vercel Pro** | Cron en `vercel.json`; en código subir `maxDuration` en `app/api/discord/gateway/route.ts` |
+**Guía:** [docs/PRODUCTION.md](docs/PRODUCTION.md)
 
-En **Vercel Hobby**, el endpoint `/api/discord/gateway` solo puede escuchar ~10 s por request — **no** reemplaza un worker siempre activo.
+1. **Vercel** — app + variables (`pnpm check:env:vercel`).
+2. **Railway** (recomendado) — mismo repo, start command `pnpm run start:gateway`, env de `.env.gateway.example` (`pnpm check:env:gateway`).
+3. Logs del worker: `listening ... → https://TU-DOMINIO/api/webhooks/discord`.
+
+Archivos: `railway.toml`, `render.yaml`, `.env.gateway.example`.
+
+Alternativa temporal: **Mac** con `pnpm discord:gateway` y `NEXT_PUBLIC_APP_URL` apuntando a Vercel.
 
 ### 7. Correr todo en local
 
@@ -143,17 +144,15 @@ pnpm discord:gateway        # terminal 2 — Discord @mentions (obligatorio para
 
 ---
 
-## Checklist Vercel (producción)
+## Checklist producción
 
-- [ ] `NEXT_PUBLIC_APP_URL=https://TU-DOMINIO.vercel.app`
-- [ ] Supabase URL (con `https://`) + keys
-- [ ] `CURSOR_API_KEY`, `CURSOR_CLOUD_REPO`, `CURSOR_CLOUD_REF=main`
-- [ ] Discord: bot token, client id/secret, public key, application id
-- [ ] `REDIS_URL` (Upstash)
-- [ ] `CRON_SECRET` (si usás GitHub Actions / cron-job / gateway HTTP)
-- [ ] Discord Portal: Interactions URL + OAuth redirects con **mismo host** que `NEXT_PUBLIC_APP_URL`
-- [ ] Gateway activo (worker local, cron externo, o Pro)
-- [ ] Guild vinculado en `/admin/discord` + bot invitado al servidor
+Ver [docs/PRODUCTION.md](docs/PRODUCTION.md). Corto:
+
+- [ ] Vercel: env completo + `pnpm check:env:vercel`
+- [ ] Railway (o worker): `pnpm run start:gateway` + `pnpm check:env:gateway`
+- [ ] Mismo `REDIS_URL` en Vercel y worker
+- [ ] Discord Portal: Interactions + OAuth con host de prod
+- [ ] Guild vinculado en `/admin/discord` + bot en el servidor
 
 ---
 
@@ -202,6 +201,10 @@ lib/cursor/gateway-worker.ts
 lib/discord/bot.ts
 lib/chat/pipeline.ts
 scripts/discord-gateway-worker.ts
+scripts/check-production-env.mjs
+railway.toml
+.env.gateway.example
+docs/PRODUCTION.md
 .github/workflows/discord-gateway.yml
 ```
 

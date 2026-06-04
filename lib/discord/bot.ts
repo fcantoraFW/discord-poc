@@ -7,9 +7,31 @@ import {
   UNAUTHORIZED_DISCORD_MESSAGE,
   UNLINKED_GUILD_MESSAGE,
 } from "@/lib/chat/pipeline";
+import {
+  listOrgAssistants,
+  resolveAssistantForDiscordThread,
+  setThreadAssistant,
+} from "@/lib/discord/thread-assistant";
 import type { Profile } from "@/lib/types/database";
 
 const REJECT_MESSAGE = UNAUTHORIZED_DISCORD_MESSAGE;
+
+async function resolveOrgMember(
+  discordUserId: string,
+  organizationId: string,
+): Promise<Profile | null> {
+  let member = await getProfileByDiscordUserId(discordUserId, organizationId);
+  if (member) return member;
+
+  const admin = createAdminClient();
+  const { data: superProfile } = await admin
+    .from("profiles")
+    .select("*")
+    .eq("discord_user_id", discordUserId)
+    .eq("role", "superadmin")
+    .maybeSingle();
+  return (superProfile as Profile | null) ?? null;
+}
 
 async function resolveDmContext(discordUserId: string): Promise<{
   profile: Profile;
@@ -36,22 +58,71 @@ async function resolveDmContext(discordUserId: string): Promise<{
     return { error: REJECT_MESSAGE };
   }
 
-  const { data: assistant } = await admin
-    .from("assistants")
-    .select("id")
-    .eq("organization_id", profile.organization_id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (!assistant) {
+  const assistants = await listOrgAssistants(profile.organization_id);
+  if (!assistants.length) {
     return { error: "Tu organización no tiene asistentes configurados." };
   }
 
-  return { profile, assistantId: assistant.id };
+  return { profile, assistantId: assistants[0]!.id };
 }
 
 function registerHandlers(bot: Chat) {
+  bot.onSlashCommand("/asistente", async (event) => {
+    const guildId = (event.raw as { guild_id?: string })?.guild_id ?? null;
+    if (!guildId) {
+      await event.channel.post(
+        "Usá /asistente en un servidor vinculado a tu organización.",
+      );
+      return;
+    }
+
+    const link = await getGuildLink(guildId);
+    if (!link) {
+      await event.channel.post(UNLINKED_GUILD_MESSAGE);
+      return;
+    }
+
+    const profile = await resolveOrgMember(event.user.userId, link.organization_id);
+    if (!profile) {
+      await event.channel.post(REJECT_MESSAGE);
+      return;
+    }
+
+    const assistantId = String(event.text ?? "").trim();
+    if (!assistantId || assistantId === "__none__") {
+      const names = (await listOrgAssistants(link.organization_id))
+        .map((a) => a.name)
+        .join(", ");
+      await event.channel.post(
+        names
+          ? `Elegí un asistente con /asistente. Disponibles: ${names}`
+          : "No hay asistentes en esta organización.",
+      );
+      return;
+    }
+
+    const assistants = await listOrgAssistants(link.organization_id);
+    if (!assistants.some((a) => a.id === assistantId)) {
+      await event.channel.post("Ese asistente no pertenece a esta organización.");
+      return;
+    }
+
+    try {
+      const { assistantName } = await setThreadAssistant({
+        profileId: profile.id,
+        discordThreadKey: event.channel.id,
+        assistantId,
+        source: "discord",
+      });
+      await event.channel.post(
+        `Asistente activo en este hilo: **${assistantName}**. Nueva sesión con el agente.`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error";
+      await event.channel.post(`⚠️ ${msg}`);
+    }
+  });
+
   async function handleInbound(
     thread: {
       subscribe: () => Promise<void>;
@@ -71,7 +142,11 @@ function registerHandlers(bot: Chat) {
         return;
       }
       profile = dm.profile;
-      assistantId = dm.assistantId;
+      assistantId = await resolveAssistantForDiscordThread({
+        profileId: profile.id,
+        discordThreadKey: thread.id,
+        guildDefaultAssistantId: dm.assistantId,
+      });
     } else {
       const link = await getGuildLink(guildId);
       if (!link) {
@@ -79,28 +154,17 @@ function registerHandlers(bot: Chat) {
         return;
       }
 
-      let member = await getProfileByDiscordUserId(
-        message.author.userId,
-        link.organization_id,
-      );
-
-      if (!member) {
-        const admin = createAdminClient();
-        const { data: superProfile } = await admin
-          .from("profiles")
-          .select("*")
-          .eq("discord_user_id", message.author.userId)
-          .eq("role", "superadmin")
-          .maybeSingle();
-        member = (superProfile as Profile | null) ?? null;
-      }
-
+      const member = await resolveOrgMember(message.author.userId, link.organization_id);
       if (!member) {
         await thread.post(REJECT_MESSAGE);
         return;
       }
       profile = member;
-      assistantId = link.default_assistant_id;
+      assistantId = await resolveAssistantForDiscordThread({
+        profileId: profile.id,
+        discordThreadKey: thread.id,
+        guildDefaultAssistantId: link.default_assistant_id,
+      });
     }
 
     await thread.subscribe();

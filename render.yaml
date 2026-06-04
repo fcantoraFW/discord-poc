@@ -1,0 +1,25 @@
+# Blueprint opcional: worker de Gateway (Render).
+# La app Next.js sigue en Vercel; este servicio solo mantiene el WebSocket de Discord.
+
+services:
+  - type: worker
+    name: discord-gateway
+    runtime: node
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile
+    startCommand: pnpm run start:gateway
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_PUBLIC_KEY
+        sync: false
+      - key: DISCORD_APPLICATION_ID
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: REDIS_URL
+        sync: false

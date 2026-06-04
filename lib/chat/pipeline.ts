@@ -95,10 +95,27 @@ export async function getOrCreateConversation(options: {
       .from("conversations")
       .select("*")
       .eq("profile_id", options.profileId)
-      .eq("assistant_id", options.assistantId)
       .eq("discord_thread_key", options.discordThreadKey)
       .maybeSingle();
-    if (existing) return existing;
+    if (existing) {
+      if (existing.assistant_id !== options.assistantId) {
+        const { data: updated, error: updateError } = await admin
+          .from("conversations")
+          .update({
+            assistant_id: options.assistantId,
+            cursor_agent_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+          .select("*")
+          .single();
+        if (updateError || !updated) {
+          throw new Error(updateError?.message ?? "Failed to update conversation");
+        }
+        return updated;
+      }
+      return existing;
+    }
   }
 
   const { data: created, error } = await admin

@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/profile";
+import {
+  registerGuildSlashCommands,
+  refreshSlashCommandsForOrg,
+} from "@/lib/discord/register-slash";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function slugify(name: string) {
@@ -42,6 +46,8 @@ export async function createAssistant(formData: FormData) {
     context,
   });
   if (error) throw new Error(error.message);
+
+  await refreshSlashCommandsForOrg(organizationId);
   revalidatePath("/admin");
   revalidatePath(`/admin/orgs/${organizationId}`);
 }
@@ -84,6 +90,8 @@ export async function linkDiscordGuild(formData: FormData) {
     default_assistant_id: defaultAssistantId,
   });
   if (error) throw new Error(error.message);
+
+  await registerGuildSlashCommands(guildId, organizationId);
   revalidatePath("/admin/discord");
 }
 

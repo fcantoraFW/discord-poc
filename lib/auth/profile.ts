@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  canAccessOrgAdmin,
+  canManageOrganization,
+  canUseChat,
+  requireOrganizationId,
+} from "@/lib/auth/roles";
 import type { Profile } from "@/lib/types/database";
 import { redirect } from "next/navigation";
 
@@ -36,9 +42,31 @@ export async function requireSuperAdmin(): Promise<Profile> {
   return profile;
 }
 
-export async function requireMemberWithOrg(): Promise<Profile> {
+export async function requireOrgAdmin(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (profile.role === "superadmin") redirect("/admin");
+  if (profile.role !== "admin" || !profile.organization_id) redirect("/chat");
+  return profile;
+}
+
+/** Superadmin or org admin — for Discord guild OAuth used in /manage and /admin/discord. */
+export async function requireDiscordGuildLinker(): Promise<Profile> {
   const profile = await requireProfile();
   if (profile.role === "superadmin") return profile;
-  if (!profile.organization_id) redirect("/auth/login?error=no_org");
+  if (profile.role === "admin" && profile.organization_id) return profile;
+  redirect("/chat");
+}
+
+export async function requireOrgManagerFor(organizationId: string): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!canManageOrganization(profile, organizationId)) redirect("/chat");
+  return profile;
+}
+
+export async function requireMemberWithOrg(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!canUseChat(profile)) {
+    redirect("/auth/login?error=no_org");
+  }
   return profile;
 }

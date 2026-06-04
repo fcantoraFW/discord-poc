@@ -1,4 +1,4 @@
-export type UserRole = "superadmin" | "member";
+export type UserRole = "superadmin" | "admin" | "member";
 export type ConversationSource = "web" | "discord";
 export type MessageRole = "user" | "assistant";
 
@@ -51,8 +51,4 @@ export type Message = {
   role: MessageRole;
   content: string;
   created_at: string;
-};
-
-export type AssistantWithOrg = Assistant & {
-  organizations: Pick<Organization, "id" | "name"> | null;
 };

@@ -9,5 +9,8 @@ export default async function Home() {
   if (profile.role === "superadmin") {
     redirect("/admin");
   }
+  if (profile.role === "admin") {
+    redirect("/manage");
+  }
   redirect("/chat");
 }

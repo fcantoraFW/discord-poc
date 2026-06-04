@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cacheGuilds, verifyOAuthState } from "@/lib/auth/oauth-cookie";
-import { requireProfile, requireSuperAdmin } from "@/lib/auth/profile";
+import { requireDiscordGuildLinker, requireProfile } from "@/lib/auth/profile";
 import {
   exchangeDiscordCode,
   fetchDiscordGuilds,
@@ -32,13 +32,15 @@ export async function GET(request: Request) {
     const token = await exchangeDiscordCode({ code, redirectUri });
 
     if (flow === "guilds") {
-      await requireSuperAdmin();
+      const linker = await requireDiscordGuildLinker();
       const guilds = await fetchDiscordGuilds(token.access_token);
       const adminGuilds = guilds.filter(
         (g) => g.owner || (BigInt(g.permissions) & BigInt(0x20)) === BigInt(0x20),
       );
       await cacheGuilds(adminGuilds);
-      return NextResponse.redirect(`${appUrl}/admin/discord?guilds=1`);
+      const discordPath =
+        linker.role === "superadmin" ? "/admin/discord" : "/manage/discord";
+      return NextResponse.redirect(`${appUrl}${discordPath}?guilds=1`);
     }
 
     const profile = await requireProfile();

@@ -13,10 +13,14 @@ export function DiscordGuildLinkForm({
   guilds,
   orgs,
   assistants,
+  linkAction = linkDiscordGuild,
+  inviteApiPath = "/api/admin/discord/invite",
 }: {
   guilds: Guild[];
   orgs: Org[];
   assistants: Assistant[];
+  linkAction?: typeof linkDiscordGuild;
+  inviteApiPath?: string;
 }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +28,7 @@ export function DiscordGuildLinkForm({
   async function loadInvite(guildId: string) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/discord/invite?guild_id=${guildId}`);
+      const res = await fetch(`${inviteApiPath}?guild_id=${guildId}`);
       const data = await res.json();
       setInviteUrl(data.url ?? null);
     } finally {
@@ -47,7 +51,7 @@ export function DiscordGuildLinkForm({
       {guilds.map((guild) => (
         <form
           key={guild.id}
-          action={linkDiscordGuild}
+          action={linkAction}
           className="border rounded-lg p-4 space-y-3"
         >
           <p className="font-medium">{guild.name}</p>

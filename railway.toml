@@ -1,0 +1,11 @@
+# Segundo servicio en Railway desde el mismo repo (worker Gateway).
+# En el dashboard: Settings → Deploy → Custom Start Command = pnpm run start:gateway
+# O dejá que railway.toml lo aplique automáticamente.
+
+[build]
+buildCommand = "pnpm install --frozen-lockfile"
+
+[deploy]
+startCommand = "pnpm run start:gateway"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
