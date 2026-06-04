@@ -1,4 +1,4 @@
-# Flywheel — Discord + Cursor PoC
+REDIS_URL="rediss://default_ro:[ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io](mailto:ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default_ro:[ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io](mailto:ggAAAAAAAaTOAAIgcDGpfuQgDvGFU6uzpuC2Q9se4NmQpb009zQakfO4nUQ2Iw@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"REDIS_URL="rediss://default:[gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io](mailto:gQAAAAAAAaTOAAIgcDE4OTEwNTU3NTEyMmI0ZmE0YmRhMTQ4ZThiM2NlOGJkOQ@sunny-mole-107726.upstash.io):6379"asdfsdfsdfsfsdfdsdfsdfsfdsfsdfdfdfdfdfdfdfdfddfdfddfdfdffdfdfdfdfdfdsdssdsdsdsds# Flywheel — Discord + Cursor PoC
 
 PoC interno: chat web con agentes **Cursor Cloud** por organización, y bot de **Discord** (Vercel Chat SDK) que responde solo a members registrados.
 
@@ -23,10 +23,10 @@ Completá todas las variables (ver checklist abajo).
 
 1. Creá un proyecto en [database.new](https://database.new).
 2. En el SQL Editor, ejecutá la migración:
-   - [`supabase/migrations/20250602000000_initial.sql`](supabase/migrations/20250602000000_initial.sql)
+  - `[supabase/migrations/20250602000000_initial.sql](supabase/migrations/20250602000000_initial.sql)`
 3. En **Authentication → URL Configuration**, agregá:
-   - `http://localhost:3000/**`
-   - Tu URL de Vercel preview/prod
+  - `http://localhost:3000/`**
+  - Tu URL de Vercel preview/prod
 4. Registrate en la app (`/auth/sign-up` o login).
 5. Promové tu usuario a super-admin:
 
@@ -47,8 +47,8 @@ where email = 'tu@email.com';
 1. [Discord Developer Portal](https://discord.com/developers/applications) → New Application.
 2. **Bot** → copiá token → `DISCORD_BOT_TOKEN`; habilitá **Message Content Intent**.
 3. **OAuth2** → Redirects:
-   - `http://localhost:3000/api/auth/discord/callback`
-   - (y la URL de producción)
+  - `http://localhost:3000/api/auth/discord/callback`
+  - (y la URL de producción)
 4. Copiá **Client ID** → `DISCORD_CLIENT_ID` y `DISCORD_APPLICATION_ID`.
 5. Copiá **Client Secret** → `DISCORD_CLIENT_SECRET`.
 6. **General** → Public Key → `DISCORD_PUBLIC_KEY`.
@@ -67,10 +67,12 @@ pnpm dev
 
 ## Flujos
 
-| Rol | Rutas |
-|-----|--------|
+
+| Rol         | Rutas                                         |
+| ----------- | --------------------------------------------- |
 | Super-admin | `/admin`, `/admin/orgs/:id`, `/admin/discord` |
-| Member | `/chat`, `/settings` (Connect Discord) |
+| Member      | `/chat`, `/settings` (Connect Discord)        |
+
 
 **Discord**
 
@@ -80,13 +82,13 @@ pnpm dev
 
 ## Checklist infra (Vercel)
 
-- [ ] Repo en GitHub + `CURSOR_CLOUD_REPO`
-- [ ] `CURSOR_API_KEY`
-- [ ] Supabase URL + publishable + service role
-- [ ] Discord bot + OAuth + public key
-- [ ] `REDIS_URL` (Upstash)
-- [ ] `NEXT_PUBLIC_APP_URL` = URL de producción
-- [ ] Webhook Discord → `/api/webhooks/discord`
+- Repo en GitHub + `CURSOR_CLOUD_REPO`
+- `CURSOR_API_KEY`
+- Supabase URL + publishable + service role
+- Discord bot + OAuth + public key
+- `REDIS_URL` (Upstash)
+- `NEXT_PUBLIC_APP_URL` = URL de producción
+- Webhook Discord → `/api/webhooks/discord`
 
 ## Estructura
 
@@ -105,3 +107,4 @@ supabase/migrations/
 
 - **Fase 1:** super-admin crea org + assistants → member invitado chatea en `/chat` con historial.
 - **Fase 2:** bot responde en guild vinculado solo a members con Discord conectado.
+
