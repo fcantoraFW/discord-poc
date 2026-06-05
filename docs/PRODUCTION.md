@@ -21,33 +21,37 @@ Copiá desde `.env.local` y revisá con:
 export $(grep -v '^#' .env.local | xargs) 2>/dev/null; pnpm check:env:vercel
 ```
 
-| Variable | Obligatorio | Notas |
-|----------|-------------|--------|
-| `NEXT_PUBLIC_APP_URL` | Sí | `https://discord-poc-ten.vercel.app` (sin `/` final) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Sí | Con `https://` |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Sí | |
-| `SUPABASE_SERVICE_ROLE_KEY` | Sí | |
-| `CURSOR_API_KEY` | Sí | |
-| `CURSOR_CLOUD_REPO` | Sí | `fcantoraFW/discord-poc` |
-| `CURSOR_CLOUD_REF` | Sí | `main` — no usar SHA |
-| `DISCORD_*` | Sí | Ver `.env.example` |
-| `REDIS_URL` | Sí (prod) | Upstash `rediss://...` |
+| Variable                               | Obligatorio | Notas                                                |
+| -------------------------------------- | ----------- | ---------------------------------------------------- |
+| `NEXT_PUBLIC_APP_URL`                  | Sí          | `https://discord-poc-ten.vercel.app` (sin `/` final) |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Sí          | Con `https://`                                       |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Sí          |                                                      |
+| `SUPABASE_SERVICE_ROLE_KEY`            | Sí          |                                                      |
+| `CURSOR_API_KEY`                       | Sí          |                                                      |
+| `CURSOR_CLOUD_REPO`                    | Sí          | `fcantoraFW/discord-poc`                             |
+| `CURSOR_CLOUD_REF`                     | Sí          | `main` — no usar SHA                                 |
+| `DISCORD_*`                            | Sí          | Ver `.env.example`                                   |
+| `REDIS_URL`                            | Sí (prod)   | Upstash `rediss://...`                               |
 
 **No** configurar `CURSOR_CLOUD_REF_MODE=sha`.
 
 ### Supabase (producción)
 
-En **Authentication → URL Configuration** agregar:
-
-- `https://TU-DOMINIO.vercel.app/**`
+1. **Authentication → Sign In / Providers → Email → Confirm email: ON**
+2. **Authentication → URL Configuration:**
+   - Site URL: `https://TU-DOMINIO.vercel.app`
+   - Redirect URLs: `https://TU-DOMINIO.vercel.app/**` (y `http://localhost:3000/**` si compartís proyecto con local)
+3. **Primer superadmin:** Dashboard → Users → Add user → SQL `update public.profiles set role = 'superadmin' where email = '...'`
+4. **Members/admins:** invitar desde `/superadmin` o `/manage/members` → invitado activa en `/auth/accept-invite`
+5. **Forgot password:** disponible en `/auth/login`; reset vía `/auth/update-password`
 
 ### Discord Developer Portal
 
-| Campo | Valor |
-|-------|--------|
-| Interactions Endpoint URL | `https://TU-DOMINIO.vercel.app/api/webhooks/discord` |
-| OAuth2 Redirect | `https://TU-DOMINIO.vercel.app/api/auth/discord/callback` |
-| Bot → Message Content Intent | Activado |
+| Campo                        | Valor                                                     |
+| ---------------------------- | --------------------------------------------------------- |
+| Interactions Endpoint URL    | `https://TU-DOMINIO.vercel.app/api/webhooks/discord`      |
+| OAuth2 Redirect              | `https://TU-DOMINIO.vercel.app/api/auth/discord/callback` |
+| Bot → Message Content Intent | Activado                                                  |
 
 ### Deploy
 
@@ -136,9 +140,9 @@ curl -sI "https://TU-DOMINIO.vercel.app/api/webhooks/discord"
 
 ## Troubleshooting prod
 
-| Síntoma | Causa probable |
-|---------|----------------|
-| Bot silencioso | Worker caído o no desplegado |
-| OAuth localhost | Falta `NEXT_PUBLIC_APP_URL` en Vercel |
-| Chat OK, Discord no | Falta gateway o `REDIS_URL` distinto entre servicios |
-| Error al conectar guild | Falta vínculo en `/admin/discord` |
+| Síntoma                 | Causa probable                                       |
+| ----------------------- | ---------------------------------------------------- |
+| Bot silencioso          | Worker caído o no desplegado                         |
+| OAuth localhost         | Falta `NEXT_PUBLIC_APP_URL` en Vercel                |
+| Chat OK, Discord no     | Falta gateway o `REDIS_URL` distinto entre servicios |
+| Error al conectar guild | Falta vínculo en `/admin/discord`                    |

@@ -2,12 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { canManageOrganization } from "@/lib/auth/roles";
-import { requireOrgManagerFor, requireProfile, requireSuperAdmin } from "@/lib/auth/profile";
+import {
+  requireOrgManagerFor,
+  requireProfile,
+  requireSuperAdmin,
+} from "@/lib/auth/profile";
 import {
   registerGuildSlashCommands,
   refreshSlashCommandsForOrg,
 } from "@/lib/discord/register-slash";
-import { getAppUrl } from "@/lib/discord/oauth";
+import { INVITE_CONFIRM_URL } from "@/lib/auth/redirect-urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function assertCanManageOrg(organizationId: string) {
@@ -52,7 +56,7 @@ export async function inviteOrgMember(formData: FormData) {
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${getAppUrl()}/auth/confirm`,
+    redirectTo: INVITE_CONFIRM_URL,
   });
   if (error) throw new Error(error.message);
 
@@ -132,7 +136,7 @@ export async function inviteOrgAdmin(formData: FormData) {
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${getAppUrl()}/auth/confirm`,
+    redirectTo: INVITE_CONFIRM_URL,
   });
   if (error) throw new Error(error.message);
 

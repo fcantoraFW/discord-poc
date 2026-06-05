@@ -1,5 +1,6 @@
 "use client";
 
+import { RESET_CONFIRM_URL } from "@/lib/auth/redirect-urls";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -31,9 +32,8 @@ export function ForgotPasswordForm({
     setError(null);
 
     try {
-      // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: RESET_CONFIRM_URL,
       });
       if (error) throw error;
       setSuccess(true);
@@ -54,8 +54,8 @@ export function ForgotPasswordForm({
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive
-              a password reset email.
+              If an account exists for that email, you will receive a password
+              reset link shortly.
             </p>
           </CardContent>
         </Card>

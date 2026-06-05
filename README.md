@@ -17,15 +17,15 @@ PoC interno: chat web con agentes **Cursor Cloud** por organización, y bot de *
 
 Durante el setup real aparecieron ajustes que **no** estaban en el primer paso a paso. Este README refleja el flujo probado.
 
-| Tema | Problema | Solución aplicada |
-|------|----------|-------------------|
-| **Cursor en Vercel** | `Failed to load external module @cursor/sdk` / `sqlite3` bindings | Sacar `@cursor/sdk`; llamar a `api.cursor.com` vía `lib/cursor/cloud-client.ts` |
-| **Cursor Cloud branch** | `Branch 'ae5f21a…' does not exist` o fallo con `main` | `startingRef` = **nombre de rama** (`main`), nunca SHA. Repo resuelto con `GET /v1/repositories` (cuenta conectada en Cursor Integrations) |
-| **Supabase signUp** | `Failed to fetch` | `NEXT_PUBLIC_SUPABASE_URL` debe incluir `https://` |
-| **Connect Discord en prod** | OAuth con `redirect_uri=localhost` | `NEXT_PUBLIC_APP_URL` en Vercel + `getAppUrl()` con host de Vercel / request |
-| **Bot no responde @mention** | Interactions URL solo no recibe mensajes | **Gateway WebSocket** obligatorio; en Hobby Vercel no hay cron útil → `pnpm discord:gateway` local u opciones abajo |
-| **Secrets** | `.env.local` commiteado | No subir; rotar keys si hubo push |
-| **pnpm + Discord** | `zlib-sync` warnings en dev | `node scripts/ensure-native-deps.mjs` (opcional, solo zlib) |
+| Tema                         | Problema                                                          | Solución aplicada                                                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Cursor en Vercel**         | `Failed to load external module @cursor/sdk` / `sqlite3` bindings | Sacar `@cursor/sdk`; llamar a `api.cursor.com` vía `lib/cursor/cloud-client.ts`                                                            |
+| **Cursor Cloud branch**      | `Branch 'ae5f21a…' does not exist` o fallo con `main`             | `startingRef` = **nombre de rama** (`main`), nunca SHA. Repo resuelto con `GET /v1/repositories` (cuenta conectada en Cursor Integrations) |
+| **Supabase Auth**            | Sign up público / flujo confuso                                   | **Invite-only**: confirm email ON; admin/superadmin invitan; invitado activa en `/auth/accept-invite`                                     |
+| **Connect Discord en prod**  | OAuth con `redirect_uri=localhost`                                | `NEXT_PUBLIC_APP_URL` en Vercel + `getAppUrl()` con host de Vercel / request                                                               |
+| **Bot no responde @mention** | Interactions URL solo no recibe mensajes                          | **Gateway WebSocket** obligatorio; en Hobby Vercel no hay cron útil → `pnpm discord:gateway` local u opciones abajo                        |
+| **Secrets**                  | `.env.local` commiteado                                           | No subir; rotar keys si hubo push                                                                                                          |
+| **pnpm + Discord**           | `zlib-sync` warnings en dev                                       | `node scripts/ensure-native-deps.mjs` (opcional, solo zlib)                                                                                |
 
 **No uses** `CURSOR_CLOUD_REF_MODE=sha` — Cursor valida `startingRef` como **nombre de rama**, no como commit.
 
@@ -47,18 +47,30 @@ Completá `.env.local` con todas las variables de `.env.example`.
 ### 2. Supabase
 
 1. Proyecto en [database.new](https://database.new).
-2. SQL Editor → ejecutar `supabase/migrations/20250602000000_initial.sql`.
-3. **Authentication → URL Configuration:**
-   - `http://localhost:3000/**`
-   - `https://TU-DOMINIO.vercel.app/**` (producción)
-4. Registrate en la app (`/auth/sign-up` o login).
-5. Super-admin:
+2. SQL Editor → ejecutar migraciones en `supabase/migrations/` (en orden).
+3. **Authentication → Sign In / Providers → Email → Confirm email: ON** (no confundir con **Emails**, que es solo plantillas).
+4. **Authentication → URL Configuration:**
+   - Site URL: `http://localhost:3000` (local) o `https://TU-DOMINIO.vercel.app` (prod)
+   - Redirect URLs: `http://localhost:3000/**` y `https://TU-DOMINIO.vercel.app/**`
+5. **Primer superadmin** (una sola vez):
+   - Dashboard → **Authentication → Users → Add user** (email + password)
+   - SQL Editor:
 
 ```sql
 update public.profiles
 set role = 'superadmin'
 where email = 'tu@email.com';
 ```
+
+6. Login en `/auth/login`.
+
+**Usuarios nuevos:** no hay sign-up público. Solo **admin** o **superadmin** invitan desde `/superadmin` o `/manage/members`. Flujo del invitado:
+
+1. Email de Supabase → click en el link
+2. `/auth/confirm` (verifica token) → `/auth/accept-invite` (elige contraseña)
+3. Redirect a `/` según rol
+
+Si pierden el email, el admin **re-invita** desde el panel. Olvido de contraseña: **Forgot password** en login → email → `/auth/update-password`.
 
 ### 3. Cursor Cloud (chat web)
 
@@ -79,13 +91,13 @@ where email = 'tu@email.com';
 
 [Discord Developer Portal](https://discord.com/developers/applications):
 
-| Paso | Dónde | Qué |
-|------|--------|-----|
-| Bot | Bot | Token → `DISCORD_BOT_TOKEN`; activar **Message Content Intent** (y Members si hace falta) |
-| OAuth2 | Redirects | `http://localhost:3000/api/auth/discord/callback` **y** `https://TU-DOMINIO/api/auth/discord/callback` |
-| General | Public Key | `DISCORD_PUBLIC_KEY` |
-| General | Interactions Endpoint URL | `https://TU-DOMINIO/api/webhooks/discord` (debe validar PING) |
-| OAuth2 | Client ID / Secret | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_APPLICATION_ID` |
+| Paso    | Dónde                     | Qué                                                                                                    |
+| ------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Bot     | Bot                       | Token → `DISCORD_BOT_TOKEN`; activar **Message Content Intent** (y Members si hace falta)              |
+| OAuth2  | Redirects                 | `http://localhost:3000/api/auth/discord/callback` **y** `https://TU-DOMINIO/api/auth/discord/callback` |
+| General | Public Key                | `DISCORD_PUBLIC_KEY`                                                                                   |
+| General | Interactions Endpoint URL | `https://TU-DOMINIO/api/webhooks/discord` (debe validar PING)                                          |
+| OAuth2  | Client ID / Secret        | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_APPLICATION_ID`                                 |
 
 En `.env.local` / Vercel:
 
@@ -158,10 +170,10 @@ Ver [docs/PRODUCTION.md](docs/PRODUCTION.md). Corto:
 
 ## Flujos por rol
 
-| Rol | Rutas |
-|-----|--------|
+| Rol         | Rutas                                         |
+| ----------- | --------------------------------------------- |
 | Super-admin | `/admin`, `/admin/orgs/:id`, `/admin/discord` |
-| Member | `/chat`, `/settings` |
+| Member      | `/chat`, `/settings`                          |
 
 **Discord (orden):**
 
@@ -173,15 +185,17 @@ Ver [docs/PRODUCTION.md](docs/PRODUCTION.md). Corto:
 
 ## Troubleshooting
 
-| Síntoma | Qué revisar |
-|---------|-------------|
+| Síntoma                                                                  | Qué revisar                                                                             |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | Chat: `Failed to determine repository default branch` / branch no existe | `CURSOR_CLOUD_REF=main`; repo en Cursor Integrations; **Nueva conversación** en `/chat` |
-| Chat: `Branch '<sha>' does not exist` | Quitar `CURSOR_CLOUD_REF_MODE=sha`; solo rama `main` |
-| Vercel: error `sqlite3` / `@cursor/sdk` | Debe estar el cliente HTTP; no reinstalar `@cursor/sdk` en la app |
-| Connect Discord → localhost en prod | `NEXT_PUBLIC_APP_URL` en Vercel; redeploy |
-| Bot invitado pero silencio | ¿Corre `pnpm discord:gateway`? ¿Message Content Intent? ¿Guild vinculado en admin? |
-| Bot responde error “no registrado” | Connect Discord en Settings; profile en la org del guild |
-| Bot: “servidor no vinculado” | `/admin/discord` → guardar vínculo guild → org |
+| Chat: `Branch '<sha>' does not exist`                                    | Quitar `CURSOR_CLOUD_REF_MODE=sha`; solo rama `main`                                    |
+| Vercel: error `sqlite3` / `@cursor/sdk`                                  | Debe estar el cliente HTTP; no reinstalar `@cursor/sdk` en la app                       |
+| Connect Discord → localhost en prod                                      | `NEXT_PUBLIC_APP_URL` en Vercel; redeploy                                               |
+| Invitación: link roto o error en confirm                               | Redirect URLs en Supabase; `NEXT_PUBLIC_APP_URL` correcto en Vercel                      |
+| Invitado no puede activar cuenta                                       | Confirm email ON; admin re-invita; revisar `/auth/error`                                 |
+| Bot invitado pero silencio                                               | ¿Corre `pnpm discord:gateway`? ¿Message Content Intent? ¿Guild vinculado en admin?      |
+| Bot responde error “no registrado”                                       | Connect Discord en Settings; profile en la org del guild                                |
+| Bot: “servidor no vinculado”                                             | `/admin/discord` → guardar vínculo guild → org                                          |
 
 ---
 
@@ -194,6 +208,11 @@ app/(admin)/admin/discord   — vínculo guild ↔ org
 app/api/chat                — SSE + Cursor Cloud HTTP
 app/api/webhooks/discord    — eventos Discord (incl. Gateway reenviado)
 app/api/discord/gateway     — listener corto (Hobby) o cron Pro
+app/auth/login              — login
+app/auth/accept-invite      — activar cuenta (post-invite)
+app/auth/confirm            — handler token email Supabase
+app/auth/forgot-password    — reset password
+app/auth/update-password    — nueva clave post-reset
 app/api/auth/discord/*      — OAuth connect / guilds / callback
 lib/cursor/cloud-client.ts  — REST api.cursor.com
 lib/cursor/agent.ts         — orquestación chat + repos Cursor

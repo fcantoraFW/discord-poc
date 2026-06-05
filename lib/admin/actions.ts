@@ -6,6 +6,7 @@ import {
   registerGuildSlashCommands,
   refreshSlashCommandsForOrg,
 } from "@/lib/discord/register-slash";
+import { INVITE_CONFIRM_URL } from "@/lib/auth/redirect-urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function slugify(name: string) {
@@ -59,7 +60,7 @@ export async function inviteMember(formData: FormData) {
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/confirm`,
+    redirectTo: INVITE_CONFIRM_URL,
   });
   if (error) throw new Error(error.message);
 
