@@ -1,5 +1,6 @@
 "use client";
 
+import { validatePassword } from "@/lib/auth/password";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,14 @@ export function AcceptInviteForm({
     e.preventDefault();
     setError(null);
 
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
     if (password !== repeatPassword) {
-      setError("Passwords do not match");
+      setError("Las contraseñas no coinciden");
       return;
     }
 

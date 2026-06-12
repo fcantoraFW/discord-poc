@@ -1,5 +1,6 @@
 "use client";
 
+import { validatePassword } from "@/lib/auth/password";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -20,12 +21,24 @@ export function UpdatePasswordForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [password, setPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    if (password !== repeatPassword) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
@@ -60,6 +73,16 @@ export function UpdatePasswordForm({
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="repeat-password">Repeat password</Label>
+                <Input
+                  id="repeat-password"
+                  type="password"
+                  required
+                  value={repeatPassword}
+                  onChange={(e) => setRepeatPassword(e.target.value)}
                 />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}

@@ -2,16 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { canManageOrganization } from "@/lib/auth/roles";
-import {
-  requireOrgManagerFor,
-  requireProfile,
-  requireSuperAdmin,
-} from "@/lib/auth/profile";
+import { requireProfile, requireSuperAdmin } from "@/lib/auth/profile";
 import {
   registerGuildSlashCommands,
   refreshSlashCommandsForOrg,
 } from "@/lib/discord/register-slash";
-import { INVITE_CONFIRM_URL } from "@/lib/auth/redirect-urls";
+import { inviteUserToOrganization } from "@/lib/auth/invite";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function assertCanManageOrg(organizationId: string) {
@@ -51,22 +47,12 @@ export async function inviteOrgMember(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   await assertCanManageOrg(organizationId);
 
-  const email = String(formData.get("email") ?? "").trim();
-  if (!email) throw new Error("Missing email");
-
-  const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: INVITE_CONFIRM_URL,
+  const email = String(formData.get("email") ?? "");
+  await inviteUserToOrganization({
+    email,
+    organizationId,
+    role: "member",
   });
-  if (error) throw new Error(error.message);
-
-  if (data.user) {
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update({ organization_id: organizationId, role: "member" })
-      .eq("id", data.user.id);
-    if (profileError) throw new Error(profileError.message);
-  }
 
   revalidatePath("/manage");
   revalidatePath("/manage/members");
@@ -130,22 +116,15 @@ export async function linkOrgDiscordGuild(formData: FormData) {
 
 export async function inviteOrgAdmin(formData: FormData) {
   await requireSuperAdmin();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "");
   const organizationId = String(formData.get("organization_id") ?? "");
-  if (!email || !organizationId) throw new Error("Missing fields");
+  if (!organizationId) throw new Error("Missing fields");
 
-  const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: INVITE_CONFIRM_URL,
+  await inviteUserToOrganization({
+    email,
+    organizationId,
+    role: "admin",
   });
-  if (error) throw new Error(error.message);
-
-  if (data.user) {
-    await admin
-      .from("profiles")
-      .update({ organization_id: organizationId, role: "admin" })
-      .eq("id", data.user.id);
-  }
 
   revalidatePath("/superadmin");
   revalidatePath("/admin");

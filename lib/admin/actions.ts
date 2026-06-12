@@ -6,7 +6,7 @@ import {
   registerGuildSlashCommands,
   refreshSlashCommandsForOrg,
 } from "@/lib/discord/register-slash";
-import { INVITE_CONFIRM_URL } from "@/lib/auth/redirect-urls";
+import { inviteUserToOrganization } from "@/lib/auth/invite";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function slugify(name: string) {
@@ -54,22 +54,15 @@ export async function createAssistant(formData: FormData) {
 
 export async function inviteMember(formData: FormData) {
   await requireSuperAdmin();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "");
   const organizationId = String(formData.get("organization_id") ?? "");
-  if (!email || !organizationId) throw new Error("Missing fields");
+  if (!organizationId) throw new Error("Missing fields");
 
-  const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: INVITE_CONFIRM_URL,
+  await inviteUserToOrganization({
+    email,
+    organizationId,
+    role: "member",
   });
-  if (error) throw new Error(error.message);
-
-  if (data.user) {
-    await admin
-      .from("profiles")
-      .update({ organization_id: organizationId, role: "member" })
-      .eq("id", data.user.id);
-  }
 
   revalidatePath("/superadmin");
 }

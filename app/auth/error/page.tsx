@@ -1,4 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAuthErrorMessage } from "@/lib/auth/messages";
+import Link from "next/link";
 import { Suspense } from "react";
 
 async function ErrorContent({
@@ -12,7 +14,7 @@ async function ErrorContent({
     <>
       {params?.error ? (
         <p className="text-sm text-muted-foreground">
-          Code error: {params.error}
+          {getAuthErrorMessage(params.error)}
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -38,10 +40,13 @@ export default function Page({
                 Sorry, something went wrong.
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <Suspense>
                 <ErrorContent searchParams={searchParams} />
               </Suspense>
+              <Link href="/auth/login" className="text-sm underline underline-offset-4">
+                Volver al login
+              </Link>
             </CardContent>
           </Card>
         </div>

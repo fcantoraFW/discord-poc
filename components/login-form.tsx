@@ -18,11 +18,14 @@ import { useState } from "react";
 
 export function LoginForm({
   className,
+  initialError = null,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentPropsWithoutRef<"div"> & {
+  initialError?: string | null;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -52,7 +55,8 @@ export function LoginForm({
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Ingresá con la cuenta que te invitó un admin. Si no tenés acceso, pedí
+            una invitación.
           </CardDescription>
         </CardHeader>
         <CardContent>
