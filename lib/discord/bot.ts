@@ -131,7 +131,6 @@ function registerHandlers(bot: Chat) {
     },
     message: { author: { userId: string }; text: string },
     guildId: string | null,
-    trigger: "mention" | "dm",
   ) {
     let profile: Profile;
     let assistantId: string;
@@ -150,54 +149,12 @@ function registerHandlers(bot: Chat) {
       });
     } else {
       const link = await getGuildLink(guildId);
-      // #region agent log
-      fetch("http://127.0.0.1:7825/ingest/1ba82d13-52ea-424b-9589-47653a290749", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e57cf4" },
-        body: JSON.stringify({
-          sessionId: "e57cf4",
-          runId: "pre-fix",
-          hypothesisId: "H3",
-          location: "lib/discord/bot.ts:handleInbound",
-          message: "guild context resolved",
-          data: {
-            trigger,
-            guildId,
-            discordUserId: message.author.userId,
-            hasGuildLink: Boolean(link),
-            orgId: link?.organization_id ?? null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       if (!link) {
         await thread.post(UNLINKED_GUILD_MESSAGE);
         return;
       }
 
       const member = await resolveOrgMember(message.author.userId, link.organization_id);
-      // #region agent log
-      fetch("http://127.0.0.1:7825/ingest/1ba82d13-52ea-424b-9589-47653a290749", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e57cf4" },
-        body: JSON.stringify({
-          sessionId: "e57cf4",
-          runId: "pre-fix",
-          hypothesisId: "H3",
-          location: "lib/discord/bot.ts:handleInbound",
-          message: "member lookup",
-          data: {
-            trigger,
-            guildId,
-            discordUserId: message.author.userId,
-            memberFound: Boolean(member),
-            memberRole: member?.role ?? null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       if (!member) {
         await thread.post(REJECT_MESSAGE);
         return;
@@ -220,72 +177,18 @@ function registerHandlers(bot: Chat) {
         source: "discord",
         discordThreadKey: thread.id,
       });
-      // #region agent log
-      fetch("http://127.0.0.1:7825/ingest/1ba82d13-52ea-424b-9589-47653a290749", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e57cf4" },
-        body: JSON.stringify({
-          sessionId: "e57cf4",
-          runId: "pre-fix",
-          hypothesisId: "H4",
-          location: "lib/discord/bot.ts:handleInbound",
-          message: "processChatMessage ok",
-          data: {
-            trigger,
-            textLen: result.assistantText.length,
-            conversationId: result.conversationId,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       await thread.post(result.assistantText);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Error al procesar el mensaje.";
-      // #region agent log
-      fetch("http://127.0.0.1:7825/ingest/1ba82d13-52ea-424b-9589-47653a290749", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e57cf4" },
-        body: JSON.stringify({
-          sessionId: "e57cf4",
-          runId: "pre-fix",
-          hypothesisId: "H4",
-          location: "lib/discord/bot.ts:handleInbound",
-          message: "processChatMessage error",
-          data: { trigger, error: msg },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       await thread.post(`⚠️ ${msg}`);
     }
   }
 
   bot.onNewMention(async (thread, message) => {
     const raw = message.raw as { guild_id?: string };
-    // #region agent log
-    fetch("http://127.0.0.1:7825/ingest/1ba82d13-52ea-424b-9589-47653a290749", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e57cf4" },
-      body: JSON.stringify({
-        sessionId: "e57cf4",
-        runId: "post-fix",
-        hypothesisId: "H2",
-        location: "lib/discord/bot.ts:onNewMention",
-        message: "mention handler fired",
-        data: {
-          threadId: thread.id,
-          guildId: raw.guild_id ?? null,
-          authorId: message.author.userId,
-          textPreview: message.text.slice(0, 80),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     try {
-      await handleInbound(thread, message, raw.guild_id ?? null, "mention");
+      await handleInbound(thread, message, raw.guild_id ?? null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error inesperado";
       console.error("[discord-bot] onNewMention failed", { error: msg });
@@ -295,7 +198,7 @@ function registerHandlers(bot: Chat) {
 
   bot.onDirectMessage(async (thread, message) => {
     try {
-      await handleInbound(thread, message, null, "dm");
+      await handleInbound(thread, message, null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error inesperado";
       console.error("[discord-bot] onDirectMessage failed", { error: msg });

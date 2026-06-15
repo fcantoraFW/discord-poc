@@ -13,9 +13,9 @@ function validateGatewayEnv(): void {
   requireEnv("DISCORD_APPLICATION_ID");
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
-  if (/localhost|127\.0\.0\.1/.test(appUrl) && process.env.DEBUG_GATEWAY_LOCAL !== "1") {
+  if (/localhost|127\.0\.0\.1/.test(appUrl)) {
     throw new Error(
-      "NEXT_PUBLIC_APP_URL must be your Vercel URL in production (not localhost). Set DEBUG_GATEWAY_LOCAL=1 for local debugging.",
+      "NEXT_PUBLIC_APP_URL must be your Vercel URL in production (not localhost)",
     );
   }
 }
