@@ -1,0 +1,2 @@
+{"sessionId":"e57cf4","runId":"post-fix","hypothesisId":"H1","location":"app/api/webhooks/discord/route.ts:POST","message":"webhook received","data":{"eventType":"GATEWAY_MESSAGE_CREATE","mentionIds":["1511829654170894436"],"authorId":"1234567890123456790","guildId":"1234567890123456781"},"timestamp":1781527989539}
+{"sessionId":"e57cf4","runId":"post-fix","hypothesisId":"H1","location":"app/api/webhooks/discord/route.ts:POST","message":"webhook handled","data":{"eventType":"GATEWAY_MESSAGE_CREATE","status":200},"timestamp":1781527989855}
