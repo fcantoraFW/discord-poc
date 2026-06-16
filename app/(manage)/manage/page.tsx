@@ -22,7 +22,7 @@ export default async function ManageHomePage() {
         </p>
       </div>
 
-      <nav className="grid gap-3 sm:grid-cols-3">
+      <nav className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/manage/assistants"
           className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
@@ -43,6 +43,13 @@ export default async function ManageHomePage() {
         >
           <p className="font-medium">Discord</p>
           <p className="text-xs text-muted-foreground mt-1">Servidor y bot</p>
+        </Link>
+        <Link
+          href="/manage/wellbeing"
+          className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+        >
+          <p className="font-medium">Bienestar</p>
+          <p className="text-xs text-muted-foreground mt-1">Encuestas y campañas</p>
         </Link>
       </nav>
 

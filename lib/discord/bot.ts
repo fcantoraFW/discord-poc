@@ -12,6 +12,7 @@ import {
   resolveAssistantForDiscordThread,
   setThreadAssistant,
 } from "@/lib/discord/thread-assistant";
+import { registerWellbeingHandlers } from "@/lib/wellbeing/handlers";
 import type { Profile } from "@/lib/types/database";
 
 const REJECT_MESSAGE = UNAUTHORIZED_DISCORD_MESSAGE;
@@ -232,6 +233,7 @@ export async function getChatBot(): Promise<Chat> {
       dedupeTtlMs: 600_000,
     });
     registerHandlers(bot);
+    registerWellbeingHandlers(bot);
     globalThis.__flywheelChatBot = bot;
   }
   return globalThis.__flywheelChatBot;

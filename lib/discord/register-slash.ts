@@ -38,6 +38,10 @@ export async function registerGuildSlashCommands(
         },
       ],
     },
+    {
+      name: "encuesta",
+      description: "Iniciar encuesta de bienestar laboral",
+    },
   ];
 
   const res = await fetch(
