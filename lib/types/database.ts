@@ -6,6 +6,7 @@ export type Organization = {
   id: string;
   name: string;
   slug: string;
+  wellbeing_assistant_id: string | null;
   created_at: string;
 };
 

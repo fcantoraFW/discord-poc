@@ -81,7 +81,7 @@ export async function createSession(options: {
       discord_thread_key: options.discordThreadKey,
       campaign_id: options.campaignId ?? null,
       source: options.source,
-      current_step: "consent",
+      current_step: "workload",
       state: initialState,
       status: "in_progress",
     })

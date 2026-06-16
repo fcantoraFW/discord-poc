@@ -3,7 +3,9 @@ import { getChatBot } from "@/lib/discord/bot";
 import {
   handleForwardedGatewayInteraction,
   parseGatewayInteractionEvent,
+  parseDirectDiscordInteraction,
 } from "@/lib/discord/gateway-interaction";
+import { routeWellbeingInteraction } from "@/lib/wellbeing/interactions";
 
 /** Cursor Cloud can take minutes; match /api/chat. */
 export const maxDuration = 300;
@@ -59,6 +61,18 @@ export async function POST(request: Request) {
   }
 
   const normalizedBody = normalizeGatewayWebhookBody(rawBody);
+
+  const directInteraction = parseDirectDiscordInteraction(normalizedBody);
+  if (directInteraction) {
+    const wellbeingResult = await routeWellbeingInteraction(directInteraction, webhookOptions);
+    if (wellbeingResult.kind !== "none") {
+      if (wellbeingResult.kind === "respond") {
+        if (wellbeingResult.after) after(() => wellbeingResult.after!());
+        return Response.json(wellbeingResult.body);
+      }
+      return new Response(null, { status: 200 });
+    }
+  }
 
   const normalizedRequest = new Request(request.url, {
     method: request.method,

@@ -12,6 +12,7 @@ import {
   resolveAssistantForDiscordThread,
   setThreadAssistant,
 } from "@/lib/discord/thread-assistant";
+import { findInProgressSession } from "@/lib/wellbeing/session-store";
 import { registerWellbeingHandlers } from "@/lib/wellbeing/handlers";
 import type { Profile } from "@/lib/types/database";
 
@@ -199,6 +200,12 @@ function registerHandlers(bot: Chat) {
 
   bot.onDirectMessage(async (thread, message) => {
     try {
+      const dm = await resolveDmContext(message.author.userId);
+      if (!("error" in dm)) {
+        const session = await findInProgressSession(dm.profile.id, thread.id);
+        if (session) return;
+      }
+
       await handleInbound(thread, message, null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error inesperado";

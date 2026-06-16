@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WellbeingPillar } from "@/lib/types/database";
+import { listOrgAssistantsForWellbeing } from "@/lib/wellbeing/assistant-config";
 import { PILLAR_LABELS, WELLBEING_PILLARS } from "@/lib/wellbeing/template";
 
 export type PillarAverage = {
@@ -41,6 +42,8 @@ export type WellbeingDashboardData = {
   orgMemberCount: number;
   pillarAverages: PillarAverage[];
   recentSubmissions: WellbeingSubmissionRow[];
+  wellbeingAssistantId: string | null;
+  assistants: Array<{ id: string; name: string }>;
 };
 
 export async function loadWellbeingDashboard(organizationId: string): Promise<WellbeingDashboardData> {
@@ -184,6 +187,15 @@ export async function loadWellbeingDashboard(organizationId: string): Promise<We
     ? (submissions ?? []).filter((s) => s.campaign_id === activeCampaign.id).length
     : 0;
 
+  const [{ data: org }, assistants] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("wellbeing_assistant_id")
+      .eq("id", organizationId)
+      .single(),
+    listOrgAssistantsForWellbeing(organizationId),
+  ]);
+
   return {
     activeCampaign: activeCampaign ?? null,
     totalSubmissions: submissions?.length ?? 0,
@@ -191,5 +203,7 @@ export async function loadWellbeingDashboard(organizationId: string): Promise<We
     orgMemberCount: memberCount ?? 0,
     pillarAverages,
     recentSubmissions,
+    wellbeingAssistantId: (org?.wellbeing_assistant_id as string | null) ?? null,
+    assistants,
   };
 }

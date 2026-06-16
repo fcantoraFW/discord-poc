@@ -6,6 +6,7 @@ import {
   closeActiveCampaign,
   launchWellbeingCampaign,
 } from "@/lib/wellbeing/campaign-actions";
+import { updateWellbeingAssistant, createWellbeingAssistantFromTemplate } from "@/lib/wellbeing/settings-actions";
 import type { WellbeingDashboardData } from "@/lib/wellbeing/analytics";
 import { PILLAR_LABELS, WELLBEING_PILLARS } from "@/lib/wellbeing/template";
 
@@ -18,6 +19,7 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [assistantId, setAssistantId] = useState(data.wellbeingAssistantId ?? "");
 
   function runLaunch() {
     setMessage(null);
@@ -41,6 +43,38 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
         setMessage("Campaña activa cerrada.");
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Error al cerrar campaña");
+      }
+    });
+  }
+
+  function runSaveAssistant() {
+    setMessage(null);
+    startTransition(async () => {
+      try {
+        await updateWellbeingAssistant(
+          organizationId,
+          assistantId === "" ? null : assistantId,
+        );
+        setMessage("Asistente de copy para encuestas actualizado.");
+      } catch (err) {
+        setMessage(err instanceof Error ? err.message : "Error al guardar asistente");
+      }
+    });
+  }
+
+  function runProvisionAssistant() {
+    setMessage(null);
+    startTransition(async () => {
+      try {
+        const result = await createWellbeingAssistantFromTemplate(organizationId);
+        setAssistantId(result.assistantId);
+        setMessage(
+          result.created
+            ? "Asistente «Asistente de bienestar» creado y asignado. Editá instructions/context en Asistentes."
+            : "Asistente de bienestar ya existía — asignado para encuestas.",
+        );
+      } catch (err) {
+        setMessage(err instanceof Error ? err.message : "Error al crear asistente");
       }
     });
   }
@@ -90,6 +124,46 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
           Los members con Discord vinculado recibirán un DM con la encuesta. También pueden
           usar <code className="text-xs">/encuesta</code> en cualquier momento.
         </p>
+      </section>
+
+      <section className="border rounded-lg p-4 space-y-3">
+        <h2 className="font-semibold">Asistente RRHH (copy)</h2>
+        <p className="text-sm text-muted-foreground">
+          Mismo patrón que los asistentes de chat: <code className="text-xs">name</code>,{" "}
+          <code className="text-xs">instructions</code> (tono + intro) y{" "}
+          <code className="text-xs">context</code> (detalle RRHH). No usa IA durante la encuesta.
+          No se reutiliza el asistente de chat por defecto (ej. «Esperando la carroza»).
+        </p>
+        {!data.wellbeingAssistantId ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+            Sin asistente de bienestar asignado — se usa copy genérico. Creá uno desde la plantilla
+            o elegí un asistente existente.
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-end gap-3">
+          <Button type="button" disabled={pending} onClick={runProvisionAssistant}>
+            Crear asistente de bienestar
+          </Button>
+          <label className="text-sm space-y-1">
+            <span className="text-muted-foreground block">Asignar otro</span>
+            <select
+              className="border rounded-md px-2 py-1.5 text-sm min-w-[220px]"
+              value={assistantId}
+              onChange={(e) => setAssistantId(e.target.value)}
+              disabled={pending}
+            >
+              <option value="">Sin asistente (copy genérico)</option>
+              {data.assistants.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button type="button" variant="outline" disabled={pending} onClick={runSaveAssistant}>
+            Guardar
+          </Button>
+        </div>
       </section>
 
       <section className="space-y-3">

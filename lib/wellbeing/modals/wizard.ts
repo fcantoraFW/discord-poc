@@ -1,0 +1,313 @@
+import type { WellbeingSession, WellbeingSessionState } from "@/lib/types/database";
+import type { WellbeingCopyContext } from "@/lib/wellbeing/assistant-config";
+import {
+  deferInteraction,
+  getInteractionUserId,
+  parseModalFieldValues,
+  respondToInteractionCallback,
+  sendInteractionFollowup,
+  type DiscordInteractionPayload,
+} from "@/lib/wellbeing/discord-api";
+import {
+  buildWizardModal,
+  continueButtonRow,
+  editActionId,
+  modalCustomId,
+  nextWizardStep,
+  openActionId,
+  parseRating,
+  PILLAR_MODAL_STEPS,
+  relationshipForPersonStep,
+  type ModalWizardStep,
+  yesNoRow,
+} from "@/lib/wellbeing/modals/build";
+import {
+  applyPersonEvaluation,
+  applyPillarComment,
+  applyPillarRating,
+  persistSubmission,
+} from "@/lib/wellbeing/submit";
+import { updateSession } from "@/lib/wellbeing/session-store";
+import { PILLAR_LABELS, getClosingMessage } from "@/lib/wellbeing/template";
+
+function parseOpenStep(actionId: string): ModalWizardStep | null {
+  const open = actionId.match(/^wellbeing:open:(\w+)$/);
+  if (open) return open[1] as ModalWizardStep;
+  const edit = actionId.match(/^wellbeing:edit:(\w+)$/);
+  if (edit) return edit[1] as ModalWizardStep;
+  const extra = actionId.match(/^wellbeing:open:extra:(peer|leader)$/);
+  if (extra) return "extra";
+  return null;
+}
+
+function parseModalStep(customId: string | undefined): ModalWizardStep | null {
+  const m = customId?.match(/^wellbeing:modal:(\w+)$/);
+  return m ? (m[1] as ModalWizardStep) : null;
+}
+
+function parseExtraRelationship(actionId: string): "peer" | "leader" | null {
+  const m = actionId.match(/^wellbeing:open:extra:(peer|leader)$/);
+  return m ? (m[1] as "peer" | "leader") : null;
+}
+
+function formatReviewSummary(session: WellbeingSession): string {
+  const lines: string[] = ["**Resumen de tu encuesta**", ""];
+  for (const pillar of PILLAR_MODAL_STEPS) {
+    const r = session.state.pillarRatings[pillar];
+    lines.push(
+      `• ${PILLAR_LABELS[pillar]}: ${r?.rating ?? "—"}/5${r?.comment ? ` — _${r.comment}_` : ""}`,
+    );
+  }
+  if (session.state.personEvaluations.length) {
+    lines.push("", "**Personas evaluadas:**");
+    for (const p of session.state.personEvaluations) {
+      lines.push(
+        `• ${p.evaluateeName} (${p.relationship}): ${p.rating}/5${p.comment ? ` — _${p.comment}_` : ""}`,
+      );
+    }
+  }
+  lines.push("", "Podés editar una sección o enviar la encuesta.");
+  return lines.join("\n");
+}
+
+function reviewEditButtons() {
+  const rows = PILLAR_MODAL_STEPS.map((pillar) => ({
+    type: 2,
+    style: 2,
+    label: `Editar ${PILLAR_LABELS[pillar].slice(0, 20)}`,
+    custom_id: editActionId(pillar),
+  }));
+  const chunks: unknown[] = [];
+  for (let i = 0; i < rows.length; i += 5) {
+    chunks.push({ type: 1, components: rows.slice(i, i + 5) });
+  }
+  chunks.push({
+    type: 1,
+    components: [
+      { type: 2, style: 2, label: "Editar compañero/a", custom_id: editActionId("peer") },
+      { type: 2, style: 2, label: "Editar superior", custom_id: editActionId("leader") },
+    ],
+  });
+  chunks.push({
+    type: 1,
+    components: [
+      { type: 2, style: 3, label: "Enviar encuesta", custom_id: "wellbeing:finalize" },
+    ],
+  });
+  return chunks;
+}
+
+async function openModalForStep(
+  interaction: DiscordInteractionPayload,
+  step: ModalWizardStep,
+): Promise<void> {
+  await respondToInteractionCallback(interaction, buildWizardModal(step));
+}
+
+async function promptNext(
+  interaction: DiscordInteractionPayload,
+  session: WellbeingSession,
+  copy: WellbeingCopyContext | null,
+  next: ModalWizardStep | "more_eval" | "review" | "done",
+  editing = false,
+): Promise<void> {
+  if (next === "more_eval") {
+    await sendInteractionFollowup(interaction.token, {
+      content: "¿Querés evaluar a otra persona?",
+      components: yesNoRow("wellbeing:more:yes", "wellbeing:more:no"),
+    });
+    await updateSession(session.id, { current_step: "more_eval" });
+    return;
+  }
+
+  if (next === "review") {
+    await sendInteractionFollowup(interaction.token, {
+      content: formatReviewSummary(session),
+      components: reviewEditButtons(),
+    });
+    await updateSession(session.id, { current_step: "review" });
+    return;
+  }
+
+  if (next === "done") {
+    await persistSubmission(session);
+    const closing = getClosingMessage(copy ?? undefined);
+    await sendInteractionFollowup(interaction.token, { content: closing });
+    return;
+  }
+
+  const label = editing ? `Editar: ${PILLAR_LABELS[next as keyof typeof PILLAR_LABELS] ?? next}` : `Continuar: ${PILLAR_LABELS[next as keyof typeof PILLAR_LABELS] ?? next}`;
+  await sendInteractionFollowup(interaction.token, {
+    content: editing ? "Abrí el formulario para editar esta sección." : "Paso guardado. Continuá con el siguiente.",
+    components: continueButtonRow(openActionId(next), label.slice(0, 80)),
+  });
+  await updateSession(session.id, { current_step: next });
+}
+
+async function applyModalSubmit(
+  session: WellbeingSession,
+  step: ModalWizardStep,
+  fields: Record<string, string>,
+  extraRelationship?: "peer" | "leader" | null,
+): Promise<{ session: WellbeingSession; editing: boolean }> {
+  const editing = session.current_step === "review";
+  let state: WellbeingSessionState = session.state;
+
+  if (PILLAR_MODAL_STEPS.includes(step as (typeof PILLAR_MODAL_STEPS)[number])) {
+    const pillar = step as (typeof PILLAR_MODAL_STEPS)[number];
+    const rating = parseRating(fields.rating);
+    if (rating == null) throw new Error("La calificación debe ser un número del 1 al 5.");
+    state = applyPillarRating(state, pillar, rating);
+    const comment = fields.comment?.trim();
+    if (comment) state = applyPillarComment(state, pillar, comment);
+    const updated = await updateSession(session.id, { state, current_step: editing ? "review" : step });
+    return { session: updated, editing };
+  }
+
+  const name = fields.name?.trim();
+  if (!name) throw new Error("El nombre es obligatorio.");
+  const rating = parseRating(fields.rating);
+  if (rating == null) throw new Error("La calificación debe ser del 1 al 5.");
+
+  const rel =
+    step === "extra"
+      ? (extraRelationship ?? state.pendingRelationship ?? "peer")
+      : relationshipForPersonStep(step);
+  if (!rel) throw new Error("Tipo de evaluación inválido.");
+
+  if (step === "peer" || step === "leader") {
+    const idx = state.personEvaluations.findIndex((e) => e.relationship === rel);
+    const evaluation = {
+      evaluateeName: name,
+      relationship: rel,
+      rating,
+      comment: fields.comment?.trim() || undefined,
+    };
+    if (idx >= 0) {
+      const evals = [...state.personEvaluations];
+      evals[idx] = evaluation;
+      state = { ...state, personEvaluations: evals };
+    } else {
+      state = applyPersonEvaluation(state, evaluation);
+    }
+  } else if (step === "extra" || editing) {
+    const idx = state.personEvaluations.findIndex(
+      (e) => e.evaluateeName === name && e.relationship === rel,
+    );
+    const evaluation = {
+      evaluateeName: name,
+      relationship: rel,
+      rating,
+      comment: fields.comment?.trim() || undefined,
+    };
+    if (idx >= 0) {
+      const evals = [...state.personEvaluations];
+      evals[idx] = evaluation;
+      state = { ...state, personEvaluations: evals };
+    } else if (step === "extra") {
+      state = applyPersonEvaluation(state, evaluation);
+    } else {
+      state = applyPersonEvaluation(state, evaluation);
+    }
+  } else {
+    state = applyPersonEvaluation(state, {
+      evaluateeName: name,
+      relationship: rel,
+      rating,
+      comment: fields.comment?.trim() || undefined,
+    });
+  }
+
+  const updated = await updateSession(session.id, {
+    state: { ...state, pendingRelationship: undefined },
+    current_step: editing ? "review" : step,
+  });
+  return { session: updated, editing };
+}
+
+export async function handleWellbeingDiscordInteraction(
+  interaction: DiscordInteractionPayload,
+  options: {
+    session: WellbeingSession;
+    copy: WellbeingCopyContext | null;
+    organizationId: string;
+  },
+): Promise<boolean> {
+  const actionId = interaction.data?.custom_id ?? "";
+  const { session, copy } = options;
+
+  if (interaction.type === 3) {
+    if (actionId === "wellbeing:more:yes") {
+      await deferInteraction(interaction);
+      await sendInteractionFollowup(interaction.token, {
+        content: "¿Evaluás a un compañero/a o a un superior?",
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 1, label: "Compañero/a", custom_id: "wellbeing:open:extra:peer" },
+              { type: 2, style: 2, label: "Superior", custom_id: "wellbeing:open:extra:leader" },
+            ],
+          },
+        ],
+      });
+      return true;
+    }
+
+    if (actionId === "wellbeing:more:no") {
+      await deferInteraction(interaction);
+      const updated = await updateSession(session.id, { current_step: "review" });
+      await promptNext(interaction, updated, copy, "review");
+      return true;
+    }
+
+    if (actionId === "wellbeing:finalize") {
+      await deferInteraction(interaction);
+      const fresh = await updateSession(session.id, { current_step: "complete" });
+      await promptNext(interaction, fresh, copy, "done");
+      return true;
+    }
+
+    const extraRel = parseExtraRelationship(actionId);
+    if (extraRel) {
+      await updateSession(session.id, {
+        state: { ...session.state, pendingRelationship: extraRel },
+        current_step: "extra",
+      });
+      await openModalForStep(interaction, "extra");
+      return true;
+    }
+
+    const openStep = parseOpenStep(actionId);
+    if (openStep) {
+      await openModalForStep(interaction, openStep);
+      return true;
+    }
+  }
+
+  if (interaction.type === 5) {
+    const step = parseModalStep(actionId);
+    if (!step) return false;
+
+    await deferInteraction(interaction);
+
+    const fields = parseModalFieldValues(interaction);
+    const { session: updated, editing } = await applyModalSubmit(
+      session,
+      step,
+      fields,
+      session.state.pendingRelationship,
+    );
+
+    if (editing) {
+      await promptNext(interaction, updated, copy, "review", true);
+      return true;
+    }
+
+    const next = nextWizardStep(step);
+    await promptNext(interaction, updated, copy, next);
+    return true;
+  }
+
+  return false;
+}

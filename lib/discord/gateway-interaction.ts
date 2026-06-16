@@ -1,87 +1,51 @@
-import type { DiscordAdapter } from "@chat-adapter/discord";
 import type { WebhookOptions } from "chat";
+import {
+  applyWellbeingRouteResult,
+  routeWellbeingInteraction,
+} from "@/lib/wellbeing/interactions";
+import {
+  parseDirectDiscordInteraction,
+  type DiscordInteractionPayload,
+} from "@/lib/wellbeing/discord-api";
 
-const DISCORD_API = "https://discord.com/api/v10";
-
-/** discord-api-types InteractionType */
-const MESSAGE_COMPONENT = 3;
-const APPLICATION_COMMAND = 2;
-
-/** discord-api-types InteractionResponseType */
-const DEFERRED_UPDATE_MESSAGE = 6;
-const DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5;
-
-type GatewayInteraction = {
-  id: string;
-  token: string;
-  type: number;
+type GatewayInteraction = DiscordInteractionPayload & {
   [key: string]: unknown;
 };
 
-type DiscordAdapterWithHandlers = DiscordAdapter & {
-  handleComponentInteraction: (
-    interaction: GatewayInteraction,
-    options?: WebhookOptions,
-  ) => void;
-  handleApplicationCommandInteraction: (
-    interaction: GatewayInteraction,
-    options?: WebhookOptions,
-  ) => void;
-};
-
-/** Acknowledge a gateway-forwarded interaction before Discord's 3s timeout. */
-export async function deferGatewayInteraction(interaction: GatewayInteraction): Promise<void> {
-  const token = process.env.DISCORD_BOT_TOKEN;
-  if (!token) throw new Error("DISCORD_BOT_TOKEN is not set");
-
-  const deferType =
-    interaction.type === MESSAGE_COMPONENT
-      ? DEFERRED_UPDATE_MESSAGE
-      : DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE;
-
-  const res = await fetch(
-    `${DISCORD_API}/interactions/${interaction.id}/${interaction.token}/callback`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bot ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ type: deferType }),
-    },
-  );
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Discord defer failed: ${res.status} ${text.slice(0, 200)}`);
-  }
-}
-
 /**
- * Gateway worker forwards INTERACTION_CREATE as GATEWAY_INTERACTION_CREATE, but the
- * Chat SDK adapter only handles messages/reactions in that path — not button/slash
- * interactions. Defer via REST, then run the adapter handlers.
+ * Gateway worker forwards INTERACTION_CREATE as GATEWAY_INTERACTION_CREATE.
+ * Wellbeing modal flows must respond before defer; other interactions defer first.
  */
 export async function handleForwardedGatewayInteraction(
   interaction: GatewayInteraction,
   options?: WebhookOptions,
 ): Promise<void> {
+  const wellbeingResult = await routeWellbeingInteraction(interaction, options);
+  if (wellbeingResult.kind !== "none") {
+    await applyWellbeingRouteResult(interaction, wellbeingResult, options);
+    return;
+  }
+
+  const { deferGatewayInteraction } = await import("@/lib/discord/gateway-interaction-defer");
   await deferGatewayInteraction(interaction);
 
   const { getChatBot } = await import("@/lib/discord/bot");
   const bot = await getChatBot();
   await bot.initialize();
-  const discord = bot.getAdapter("discord") as DiscordAdapterWithHandlers | undefined;
+  const discord = bot.getAdapter("discord") as unknown as {
+    handleComponentInteraction: (i: GatewayInteraction, o?: WebhookOptions) => void;
+    handleApplicationCommandInteraction: (i: GatewayInteraction, o?: WebhookOptions) => void;
+  } | undefined;
   if (!discord) {
     throw new Error("Discord adapter not configured");
   }
 
-  if (interaction.type === MESSAGE_COMPONENT) {
+  if (interaction.type === 3) {
     discord.handleComponentInteraction(interaction, options);
     return;
   }
 
-  if (interaction.type === APPLICATION_COMMAND) {
+  if (interaction.type === 2) {
     discord.handleApplicationCommandInteraction(interaction, options);
     return;
   }
@@ -105,3 +69,5 @@ export function parseGatewayInteractionEvent(rawBody: string): GatewayInteractio
   }
   return null;
 }
+
+export { parseDirectDiscordInteraction };
