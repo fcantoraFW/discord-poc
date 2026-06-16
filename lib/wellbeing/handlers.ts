@@ -162,94 +162,102 @@ export function registerWellbeingHandlers(bot: Chat) {
   bot.onAction(async (event) => {
     if (!event.actionId.startsWith("wellbeing:")) return;
 
-    const thread = event.thread ?? bot.thread(event.threadId);
-    const guildId = (event.raw as { guild_id?: string })?.guild_id ?? null;
-    const ctx = await resolveProfileContext(event.user.userId, guildId);
-    if ("error" in ctx) {
-      await thread.post(ctx.error);
-      return;
-    }
-
-    const session = await findInProgressSession(ctx.profile.id, thread.id);
-    if (!session) {
-      await thread.post("No hay una encuesta activa. Usá `/encuesta` para comenzar.");
-      return;
-    }
-
     const actionId = event.actionId;
+    const thread = event.thread ?? bot.thread(event.threadId);
 
-    if (actionId === "wellbeing:consent:accept") {
-      await handleConsentAccept(session, thread);
-      return;
-    }
-
-    if (actionId === "wellbeing:comment:yes") {
-      await handleCommentYes(session, thread);
-      return;
-    }
-
-    if (actionId === "wellbeing:comment:skip") {
-      await handleCommentSkip(session, thread);
-      return;
-    }
-
-    if (actionId === "wellbeing:more_eval:yes") {
-      await handleMoreEval(session, thread, true);
-      return;
-    }
-
-    if (actionId === "wellbeing:more_eval:no") {
-      await handleMoreEval(session, thread, false);
-      return;
-    }
-
-    if (actionId === "wellbeing:relationship:peer") {
-      await handleExtraRelationship(session, thread, "peer");
-      return;
-    }
-
-    if (actionId === "wellbeing:relationship:leader") {
-      await handleExtraRelationship(session, thread, "leader");
-      return;
-    }
-
-    const pillarRating = parsePillarRatingAction(actionId);
-    if (pillarRating) {
-      await handlePillarRating(session, thread, pillarRating.pillar, pillarRating.rating);
-      return;
-    }
-
-    const personRating = parsePersonRatingAction(actionId);
-    if (personRating) {
-      await handlePersonRating(
-        session,
-        thread,
-        personRating.relationship,
-        personRating.rating,
-      );
-      return;
-    }
-
-    const campaignMatch = actionId.match(/^wellbeing:campaign:start:(.+)$/);
-    if (campaignMatch) {
-      const campaignId = campaignMatch[1]!;
-      const campaign = await getCampaignById(campaignId);
-      if (!campaign || campaign.organization_id !== ctx.organizationId) {
-        await thread.post("Esta campaña ya no está disponible.");
-        return;
-      }
-      if (campaign.status !== "active") {
-        await thread.post("Esta campaña ya finalizó.");
+    try {
+      const guildId = (event.raw as { guild_id?: string })?.guild_id ?? null;
+      const ctx = await resolveProfileContext(event.user.userId, guildId);
+      if ("error" in ctx) {
+        await thread.post(ctx.error);
         return;
       }
 
-      await beginSurvey({
-        thread,
-        profile: ctx.profile,
-        organizationId: ctx.organizationId,
-        source: "campaign",
-        campaignId,
-      });
+      const campaignMatch = actionId.match(/^wellbeing:campaign:start:(.+)$/);
+      if (campaignMatch) {
+        const campaignId = campaignMatch[1]!;
+        const campaign = await getCampaignById(campaignId);
+        if (!campaign || campaign.organization_id !== ctx.organizationId) {
+          await thread.post("Esta campaña ya no está disponible.");
+          return;
+        }
+        if (campaign.status !== "active") {
+          await thread.post("Esta campaña ya finalizó.");
+          return;
+        }
+
+        await beginSurvey({
+          thread,
+          profile: ctx.profile,
+          organizationId: ctx.organizationId,
+          source: "campaign",
+          campaignId,
+        });
+        return;
+      }
+
+      const session = await findInProgressSession(ctx.profile.id, thread.id);
+      if (!session) {
+        await thread.post(
+          "No hay una encuesta activa. Abrí la encuesta desde el botón del mensaje de campaña o usá `/encuesta`.",
+        );
+        return;
+      }
+
+      if (actionId === "wellbeing:consent:accept") {
+        await handleConsentAccept(session, thread);
+        return;
+      }
+
+      if (actionId === "wellbeing:comment:yes") {
+        await handleCommentYes(session, thread);
+        return;
+      }
+
+      if (actionId === "wellbeing:comment:skip") {
+        await handleCommentSkip(session, thread);
+        return;
+      }
+
+      if (actionId === "wellbeing:more_eval:yes") {
+        await handleMoreEval(session, thread, true);
+        return;
+      }
+
+      if (actionId === "wellbeing:more_eval:no") {
+        await handleMoreEval(session, thread, false);
+        return;
+      }
+
+      if (actionId === "wellbeing:relationship:peer") {
+        await handleExtraRelationship(session, thread, "peer");
+        return;
+      }
+
+      if (actionId === "wellbeing:relationship:leader") {
+        await handleExtraRelationship(session, thread, "leader");
+        return;
+      }
+
+      const pillarRating = parsePillarRatingAction(actionId);
+      if (pillarRating) {
+        await handlePillarRating(session, thread, pillarRating.pillar, pillarRating.rating);
+        return;
+      }
+
+      const personRating = parsePersonRatingAction(actionId);
+      if (personRating) {
+        await handlePersonRating(
+          session,
+          thread,
+          personRating.relationship,
+          personRating.rating,
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error al procesar la encuesta";
+      console.error("[wellbeing] onAction failed", { actionId, error: msg });
+      await thread.post(`⚠️ ${msg}`);
     }
   });
 
