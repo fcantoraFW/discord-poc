@@ -3,7 +3,6 @@ import { getWellbeingCopyContext } from "@/lib/wellbeing/assistant-config";
 import {
   deferInteraction,
   getInteractionUserId,
-  INTERACTION_APPLICATION_COMMAND,
   INTERACTION_MESSAGE_COMPONENT,
   INTERACTION_MODAL_SUBMIT,
   isWellbeingInteraction,
@@ -12,22 +11,23 @@ import {
   type DiscordInteractionPayload,
 } from "@/lib/wellbeing/discord-api";
 import {
+  ALREADY_COMPLETED_MESSAGE,
   beginSurveyFromInteraction,
+  CAMPAIGN_ENDED_MESSAGE,
+  NO_ACTIVE_SURVEY_MESSAGE,
   resolveProfileContextForInteraction,
 } from "@/lib/wellbeing/interaction-context";
-import {
-  buildWizardModal,
-  continueButtonRow,
-  openActionId,
-} from "@/lib/wellbeing/modals/build";
+import { buildWizardModal } from "@/lib/wellbeing/modals/build";
 import { buildProjectEvalModal } from "@/lib/wellbeing/modals/project-build";
-import {
-  getProjectEvalFirstOpenAction,
-  getProjectEvalFirstStep,
-} from "@/lib/wellbeing/modals/project-wizard";
+import { getProjectEvalFirstStep } from "@/lib/wellbeing/modals/project-wizard";
 import { handleWellbeingDiscordInteraction } from "@/lib/wellbeing/modals/wizard";
-import { getProjectEvalConsentMessage } from "@/lib/wellbeing/project-eval-template";
-import { getConsentMessage } from "@/lib/wellbeing/template";
+import {
+  ensureActiveCampaignSession,
+  findInProgressSession,
+  getCampaignById,
+  hasCampaignSubmission,
+  updateSession,
+} from "@/lib/wellbeing/session-store";
 
 export type WellbeingRouteResult =
   | { kind: "none" }
@@ -50,49 +50,13 @@ function isProjectEvalSession(session: { state: { campaignType?: string } }): bo
   return session.state.campaignType === "project_evaluation";
 }
 
-async function handleSlashEncuesta(
-  interaction: DiscordInteractionPayload,
-): Promise<WellbeingRouteResult> {
-  const userId = getInteractionUserId(interaction);
-  if (!userId || !interaction.channel_id) return { kind: "none" };
-
-  const ctx = await resolveProfileContextForInteraction(userId, interaction.guild_id ?? null);
-  if ("error" in ctx) {
-    await deferInteraction(interaction, true);
-    await sendInteractionFollowup(interaction.token, { content: ctx.error });
-    return { kind: "handled" };
-  }
-
-  await deferInteraction(interaction, true);
-
-  const copy = await getWellbeingCopyContext(ctx.organizationId);
-  const session = await beginSurveyFromInteraction({
-    profile: ctx.profile,
-    organizationId: ctx.organizationId,
-    discordThreadKey: interaction.channel_id,
-    source: "encuesta",
-    copy,
-  });
-
-  if (!session) {
-    await sendInteractionFollowup(interaction.token, {
-      content: "You already completed the survey for this campaign. Thank you!",
-    });
-    return { kind: "handled" };
-  }
-
-  const projectEval = isProjectEvalSession(session);
-  await sendInteractionFollowup(interaction.token, {
-    content: projectEval
-      ? getProjectEvalConsentMessage(copy ?? undefined)
-      : getConsentMessage(copy ?? undefined),
-    components: continueButtonRow(
-      projectEval ? getProjectEvalFirstOpenAction() : openActionId("workload"),
-      "Start survey",
-    ),
-  });
-
-  return { kind: "handled" };
+async function resolveActiveSession(
+  profileId: string,
+  discordThreadKey: string,
+): Promise<Awaited<ReturnType<typeof findInProgressSession>>> {
+  const session = await findInProgressSession(profileId, discordThreadKey);
+  if (!session) return null;
+  return ensureActiveCampaignSession(session);
 }
 
 async function handleCampaignStart(
@@ -109,21 +73,35 @@ async function handleCampaignStart(
     return { kind: "handled" };
   }
 
-  const copy = await getWellbeingCopyContext(ctx.organizationId);
+  const campaign = await getCampaignById(campaignId);
+  if (!campaign || campaign.organization_id !== ctx.organizationId) {
+    await deferInteraction(interaction);
+    await sendInteractionFollowup(interaction.token, { content: CAMPAIGN_ENDED_MESSAGE });
+    return { kind: "handled" };
+  }
+
+  if (campaign.status !== "active") {
+    await deferInteraction(interaction);
+    await sendInteractionFollowup(interaction.token, { content: CAMPAIGN_ENDED_MESSAGE });
+    return { kind: "handled" };
+  }
+
+  if (await hasCampaignSubmission(ctx.profile.id, campaignId)) {
+    await deferInteraction(interaction);
+    await sendInteractionFollowup(interaction.token, { content: ALREADY_COMPLETED_MESSAGE });
+    return { kind: "handled" };
+  }
+
   const session = await beginSurveyFromInteraction({
     profile: ctx.profile,
     organizationId: ctx.organizationId,
     discordThreadKey: interaction.channel_id,
-    source: "campaign",
     campaignId,
-    copy,
   });
 
   if (!session) {
     await deferInteraction(interaction);
-    await sendInteractionFollowup(interaction.token, {
-      content: "You already completed the survey for this campaign. Thank you!",
-    });
+    await sendInteractionFollowup(interaction.token, { content: CAMPAIGN_ENDED_MESSAGE });
     return { kind: "handled" };
   }
 
@@ -158,13 +136,10 @@ async function handleComponent(
       return { kind: "handled" };
     }
 
-    const { findInProgressSession, updateSession } = await import("@/lib/wellbeing/session-store");
-    const session = await findInProgressSession(ctx.profile.id, interaction.channel_id);
+    const session = await resolveActiveSession(ctx.profile.id, interaction.channel_id);
     if (!session) {
       await deferInteraction(interaction);
-      await sendInteractionFollowup(interaction.token, {
-        content: "No active survey. Use `/encuesta` or the campaign button.",
-      });
+      await sendInteractionFollowup(interaction.token, { content: NO_ACTIVE_SURVEY_MESSAGE });
       return { kind: "handled" };
     }
 
@@ -235,13 +210,10 @@ async function handleComponent(
     return { kind: "handled" };
   }
 
-  const { findInProgressSession } = await import("@/lib/wellbeing/session-store");
-  const session = await findInProgressSession(ctx.profile.id, threadKey(interaction));
+  const session = await resolveActiveSession(ctx.profile.id, threadKey(interaction));
   if (!session) {
     await deferInteraction(interaction);
-    await sendInteractionFollowup(interaction.token, {
-      content: "No active survey. Use `/encuesta` or the campaign button.",
-    });
+    await sendInteractionFollowup(interaction.token, { content: NO_ACTIVE_SURVEY_MESSAGE });
     return { kind: "handled" };
   }
 
@@ -286,13 +258,10 @@ async function handleModalSubmit(
     return { kind: "handled" };
   }
 
-  const { findInProgressSession } = await import("@/lib/wellbeing/session-store");
-  const session = await findInProgressSession(ctx.profile.id, threadKey(interaction));
+  const session = await resolveActiveSession(ctx.profile.id, threadKey(interaction));
   if (!session) {
     await deferInteraction(interaction);
-    await sendInteractionFollowup(interaction.token, {
-      content: "No active survey. Use `/encuesta` or the campaign button.",
-    });
+    await sendInteractionFollowup(interaction.token, { content: NO_ACTIVE_SURVEY_MESSAGE });
     return { kind: "handled" };
   }
 
@@ -327,10 +296,6 @@ export async function routeWellbeingInteraction(
   options?: WebhookOptions,
 ): Promise<WellbeingRouteResult> {
   if (!isWellbeingInteraction(interaction)) return { kind: "none" };
-
-  if (interaction.type === INTERACTION_APPLICATION_COMMAND) {
-    return handleSlashEncuesta(interaction);
-  }
 
   if (interaction.type === INTERACTION_MESSAGE_COMPONENT) {
     return handleComponent(interaction, options);

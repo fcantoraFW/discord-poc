@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { canManageOrganization } from "@/lib/auth/roles";
 import { requireProfile } from "@/lib/auth/profile";
 import { campaignStartCard } from "@/lib/wellbeing/cards";
+import { abandonInProgressSessionsForCampaigns } from "@/lib/wellbeing/session-store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { WellbeingCampaignType } from "@/lib/types/database";
 
@@ -35,6 +36,7 @@ export async function launchWellbeingCampaign(
 
   if (activeCampaigns?.length) {
     const ids = activeCampaigns.map((c) => c.id);
+    await abandonInProgressSessionsForCampaigns(ids);
     await admin
       .from("wellbeing_campaigns")
       .update({ status: "closed", closed_at: new Date().toISOString() })
@@ -95,6 +97,17 @@ export async function launchWellbeingCampaign(
 export async function closeActiveCampaign(organizationId: string) {
   await assertCanManageOrg(organizationId);
   const admin = createAdminClient();
+
+  const { data: activeCampaigns } = await admin
+    .from("wellbeing_campaigns")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("status", "active");
+
+  const ids = (activeCampaigns ?? []).map((c) => c.id);
+  if (ids.length) {
+    await abandonInProgressSessionsForCampaigns(ids);
+  }
 
   await admin
     .from("wellbeing_campaigns")

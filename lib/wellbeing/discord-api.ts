@@ -133,8 +133,5 @@ export function isWellbeingInteraction(interaction: DiscordInteractionPayload): 
     const id = interaction.data?.custom_id ?? "";
     return id.startsWith("wellbeing:");
   }
-  if (interaction.type === INTERACTION_APPLICATION_COMMAND) {
-    return interaction.data?.name === "encuesta";
-  }
   return false;
 }

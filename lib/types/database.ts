@@ -58,7 +58,7 @@ export type WellbeingPillar = "workload" | "climate" | "wellbeing" | "recognitio
 export type WellbeingRelationship = "peer" | "leader";
 export type WellbeingSessionStatus = "in_progress" | "completed" | "abandoned";
 export type WellbeingCampaignStatus = "draft" | "active" | "closed";
-export type WellbeingSubmissionSource = "encuesta" | "campaign";
+export type WellbeingSubmissionSource = "campaign";
 export type WellbeingCampaignType = "wellbeing" | "project_evaluation";
 export type TeamMemberRole =
   | "design"

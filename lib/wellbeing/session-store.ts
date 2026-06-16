@@ -21,6 +21,54 @@ function parseSession(row: Record<string, unknown>): WellbeingSession {
   };
 }
 
+export async function abandonInProgressSessionsForCampaigns(
+  campaignIds: string[],
+): Promise<number> {
+  if (!campaignIds.length) return 0;
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const { data, error } = await admin
+    .from("wellbeing_sessions")
+    .update({ status: "abandoned", updated_at: now })
+    .in("campaign_id", campaignIds)
+    .eq("status", "in_progress")
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
+export async function abandonSession(sessionId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("wellbeing_sessions")
+    .update({
+      status: "abandoned",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId)
+    .eq("status", "in_progress");
+
+  if (error) throw new Error(error.message);
+}
+
+export async function ensureActiveCampaignSession(
+  session: WellbeingSession,
+): Promise<WellbeingSession | null> {
+  if (!session.campaign_id) {
+    await abandonSession(session.id);
+    return null;
+  }
+
+  const campaign = await getCampaignById(session.campaign_id);
+  if (!campaign || campaign.status !== "active") {
+    await abandonSession(session.id);
+    return null;
+  }
+
+  return session;
+}
+
 export async function findInProgressSession(
   profileId: string,
   discordThreadKey: string,
@@ -92,7 +140,14 @@ export async function createSession(options: {
     .select("*")
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "Failed to create wellbeing session");
+  if (error) {
+    if (error.code === "23505") {
+      const existing = await findInProgressSession(options.profileId, options.discordThreadKey);
+      if (existing) return existing;
+    }
+    throw new Error(error.message ?? "Failed to create wellbeing session");
+  }
+  if (!data) throw new Error("Failed to create wellbeing session");
   return parseSession(data);
 }
 

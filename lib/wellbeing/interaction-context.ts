@@ -10,13 +10,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { WellbeingSession } from "@/lib/types/database";
 import {
   createSession,
+  ensureActiveCampaignSession,
   findInProgressSession,
-  getActiveCampaign,
   getCampaignById,
   hasCampaignSubmission,
 } from "@/lib/wellbeing/session-store";
 
 const REJECT_MESSAGE = UNAUTHORIZED_DISCORD_MESSAGE;
+
+export const CAMPAIGN_ENDED_MESSAGE =
+  "This campaign has ended. Wait for HR to launch a new one.";
+export const NO_ACTIVE_SURVEY_MESSAGE =
+  "No active survey. Use the **Start survey** button in your campaign DM.";
+export const ALREADY_COMPLETED_MESSAGE =
+  "You already completed the survey for this campaign. Thank you!";
 
 async function resolveOrgMember(
   discordUserId: string,
@@ -50,7 +57,7 @@ export async function resolveProfileContextForInteraction(
     if (profiles.length > 1) {
       return {
         error:
-          "Tenés varias organizaciones. Usá /encuesta en el servidor de Discord de tu org.",
+          "Your Discord account is linked to multiple organizations. Open the campaign DM from the correct organization.",
       };
     }
     const profile = profiles[0] as Profile;
@@ -70,57 +77,37 @@ export async function beginSurveyFromInteraction(options: {
   profile: Profile;
   organizationId: string;
   discordThreadKey: string;
-  source: "encuesta" | "campaign";
-  campaignId?: string | null;
+  campaignId: string;
   copy?: WellbeingCopyContext | null;
 }): Promise<WellbeingSession | null> {
-  const { profile, organizationId, discordThreadKey, source } = options;
-  let campaignId = options.campaignId ?? null;
+  const { profile, organizationId, discordThreadKey, campaignId } = options;
 
-  if (source === "encuesta" && !campaignId) {
-    const active = await getActiveCampaign(organizationId);
-    campaignId = active?.id ?? null;
+  const campaign = await getCampaignById(campaignId);
+  if (!campaign || campaign.organization_id !== organizationId) {
+    return null;
+  }
+  if (campaign.status !== "active") {
+    return null;
   }
 
-  if (campaignId) {
-    const campaign = await getCampaignById(campaignId);
-    if (!campaign || campaign.organization_id !== organizationId) {
-      throw new Error("Esta campaña ya no está disponible.");
-    }
-    if (campaign.status !== "active") {
-      throw new Error("Esta campaña ya finalizó.");
-    }
-    const already = await hasCampaignSubmission(profile.id, campaignId);
-    if (already) return null;
-
-    return createSession({
-      profileId: profile.id,
-      organizationId,
-      discordThreadKey,
-      source,
-      campaignId,
-      campaignType: (campaign.campaign_type as WellbeingCampaignType) ?? "wellbeing",
-    });
-  }
+  const already = await hasCampaignSubmission(profile.id, campaignId);
+  if (already) return null;
 
   const existing = await findInProgressSession(profile.id, discordThreadKey);
-  if (existing) return existing;
-
-  let campaignType: WellbeingCampaignType = "wellbeing";
-  if (source === "encuesta") {
-    const active = await getActiveCampaign(organizationId);
-    if (active?.campaign_type) {
-      campaignType = active.campaign_type as WellbeingCampaignType;
-    }
+  if (existing) {
+    const active = await ensureActiveCampaignSession(existing);
+    if (!active) return null;
+    if (active.campaign_id !== campaignId) return active;
+    return active;
   }
 
   return createSession({
     profileId: profile.id,
     organizationId,
     discordThreadKey,
-    source,
+    source: "campaign",
     campaignId,
-    campaignType,
+    campaignType: (campaign.campaign_type as WellbeingCampaignType) ?? "wellbeing",
   });
 }
 

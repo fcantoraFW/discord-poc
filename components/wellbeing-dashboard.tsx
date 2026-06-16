@@ -144,8 +144,8 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
         </div>
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
         <p className="text-xs text-muted-foreground">
-          Los members con Discord vinculado recibirán un DM con la encuesta. También pueden
-          usar <code className="text-xs">/encuesta</code> en cualquier momento.
+          Los members con Discord vinculado recibirán un DM con la encuesta cuando lances la
+          campaña.
         </p>
       </section>
 
