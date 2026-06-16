@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { WellbeingPillar } from "@/lib/types/database";
+import type { WellbeingCampaignType, WellbeingPillar } from "@/lib/types/database";
 import { listOrgAssistantsForWellbeing } from "@/lib/wellbeing/assistant-config";
 import { PILLAR_LABELS, WELLBEING_PILLARS } from "@/lib/wellbeing/template";
 
@@ -34,6 +34,7 @@ export type WellbeingDashboardData = {
   activeCampaign: {
     id: string;
     name: string;
+    campaign_type: WellbeingCampaignType;
     started_at: string | null;
     status: string;
   } | null;
@@ -51,7 +52,7 @@ export async function loadWellbeingDashboard(organizationId: string): Promise<We
 
   const { data: activeCampaign } = await supabase
     .from("wellbeing_campaigns")
-    .select("id, name, started_at, status")
+    .select("id, name, campaign_type, started_at, status")
     .eq("organization_id", organizationId)
     .eq("status", "active")
     .order("started_at", { ascending: false })
@@ -197,7 +198,12 @@ export async function loadWellbeingDashboard(organizationId: string): Promise<We
   ]);
 
   return {
-    activeCampaign: activeCampaign ?? null,
+    activeCampaign: activeCampaign
+      ? {
+          ...activeCampaign,
+          campaign_type: (activeCampaign.campaign_type as WellbeingCampaignType) ?? "wellbeing",
+        }
+      : null,
     totalSubmissions: submissions?.length ?? 0,
     campaignSubmissions,
     orgMemberCount: memberCount ?? 0,

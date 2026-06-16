@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import type { WellbeingCampaignType } from "@/lib/types/database";
 import {
   closeActiveCampaign,
   launchWellbeingCampaign,
@@ -20,12 +21,18 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assistantId, setAssistantId] = useState(data.wellbeingAssistantId ?? "");
+  const [campaignType, setCampaignType] = useState<WellbeingCampaignType>("wellbeing");
+
+  const CAMPAIGN_TYPE_LABELS: Record<WellbeingCampaignType, string> = {
+    wellbeing: "Bienestar",
+    project_evaluation: "Evaluación de proyecto",
+  };
 
   function runLaunch() {
     setMessage(null);
     startTransition(async () => {
       try {
-        const result = await launchWellbeingCampaign(organizationId);
+        const result = await launchWellbeingCampaign(organizationId, campaignType);
         setMessage(
           `Campaña enviada: ${result.sent} DM(s) enviados${result.failed ? `, ${result.failed} fallidos` : ""}.`,
         );
@@ -95,6 +102,10 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
               {data.activeCampaign.name}
             </p>
             <p>
+              <span className="text-muted-foreground">Tipo:</span>{" "}
+              {CAMPAIGN_TYPE_LABELS[data.activeCampaign.campaign_type]}
+            </p>
+            <p>
               <span className="text-muted-foreground">Inicio:</span>{" "}
               {data.activeCampaign.started_at
                 ? new Date(data.activeCampaign.started_at).toLocaleString()
@@ -109,8 +120,20 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
         ) : (
           <p className="text-sm text-muted-foreground">No hay campaña activa.</p>
         )}
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={pending} onClick={runLaunch}>
+        <div className="flex flex-wrap gap-2 items-end">
+          <label className="text-sm space-y-1">
+            <span className="text-muted-foreground block">Tipo de campaña</span>
+            <select
+              className="border rounded-md px-2 py-1.5 text-sm min-w-[220px]"
+              value={campaignType}
+              onChange={(e) => setCampaignType(e.target.value as WellbeingCampaignType)}
+              disabled={pending || Boolean(data.activeCampaign)}
+            >
+              <option value="wellbeing">Bienestar</option>
+              <option value="project_evaluation">Evaluación de proyecto</option>
+            </select>
+          </label>
+          <Button type="button" disabled={pending || Boolean(data.activeCampaign)} onClick={runLaunch}>
             Enviar encuesta a todos
           </Button>
           {data.activeCampaign ? (
@@ -166,6 +189,7 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
         </div>
       </section>
 
+      {data.activeCampaign?.campaign_type !== "project_evaluation" ? (
       <section className="space-y-3">
         <h2 className="font-semibold">Promedios por pilar</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -180,6 +204,7 @@ export function WellbeingDashboard({ organizationId, data }: Props) {
           ))}
         </div>
       </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="font-semibold">Respuestas recientes</h2>

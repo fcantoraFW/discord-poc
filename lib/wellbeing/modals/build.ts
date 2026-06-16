@@ -60,14 +60,14 @@ export function buildWizardModal(step: ModalWizardStep): { type: typeof RESPONSE
         title,
         components: [
           modalRow(
-            textInput("rating", "Calificación (1-5)", {
+            textInput("rating", "Rating (1-5)", {
               required: true,
-              placeholder: "1 = muy mal, 5 = excelente",
+              placeholder: "1 = very poor, 5 = excellent",
               maxLength: 1,
             }),
           ),
           modalRow(
-            textInput("comment", "Comentario opcional", {
+            textInput("comment", "Optional comment", {
               required: false,
               multiline: true,
               placeholder: question.slice(0, 100),
@@ -79,21 +79,21 @@ export function buildWizardModal(step: ModalWizardStep): { type: typeof RESPONSE
   }
 
   if (step === "peer" || step === "leader" || step === "extra") {
-    const rel = step === "leader" ? "superior/líder" : "compañero/a";
+    const rel = step === "leader" ? "manager/leader" : "teammate";
     return {
       type: RESPONSE_MODAL,
       data: {
         custom_id: modalCustomId(step),
-        title: step === "extra" ? "Evaluar otra persona" : `Evaluar ${rel}`.slice(0, 45),
+        title: step === "extra" ? "Evaluate another person" : `Evaluate ${rel}`.slice(0, 45),
         components: [
           modalRow(
-            textInput("name", "Nombre", { required: true, placeholder: "Nombre de la persona" }),
+            textInput("name", "Name", { required: true, placeholder: "Person's name" }),
           ),
           modalRow(
-            textInput("rating", "Calificación (1-5)", { required: true, maxLength: 1 }),
+            textInput("rating", "Rating (1-5)", { required: true, maxLength: 1 }),
           ),
           modalRow(
-            textInput("comment", "Comentario opcional", { required: false, multiline: true }),
+            textInput("comment", "Optional comment", { required: false, multiline: true }),
           ),
         ],
       },
@@ -149,8 +149,8 @@ export function yesNoRow(yesId: string, noId: string) {
     {
       type: 1,
       components: [
-        { type: 2, style: 1, label: "Sí, evaluar a alguien más", custom_id: yesId },
-        { type: 2, style: 2, label: "No, ver resumen", custom_id: noId },
+        { type: 2, style: 1, label: "Yes, evaluate someone else", custom_id: yesId },
+        { type: 2, style: 2, label: "No, view summary", custom_id: noId },
       ],
     },
   ];

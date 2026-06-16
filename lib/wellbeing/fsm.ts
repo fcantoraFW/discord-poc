@@ -1,4 +1,9 @@
-import type { WellbeingPillar, WellbeingRelationship, WellbeingSessionState } from "@/lib/types/database";
+import type {
+  WellbeingCampaignType,
+  WellbeingPillar,
+  WellbeingRelationship,
+  WellbeingSessionState,
+} from "@/lib/types/database";
 import { WELLBEING_PILLARS } from "@/lib/wellbeing/template";
 
 export type WellbeingStep =
@@ -22,10 +27,15 @@ export type WellbeingStep =
   | "extra_comment_text"
   | "complete";
 
-export function emptySessionState(): WellbeingSessionState {
+export function emptySessionState(
+  campaignType: WellbeingCampaignType = "wellbeing",
+): WellbeingSessionState {
   return {
+    campaignType,
     pillarRatings: {},
     personEvaluations: [],
+    projectSelfEval: campaignType === "project_evaluation" ? {} : undefined,
+    teamEvaluations: campaignType === "project_evaluation" ? [] : undefined,
   };
 }
 

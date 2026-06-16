@@ -1,5 +1,5 @@
 import { Actions, Button, Card, CardText as Text } from "chat";
-import type { WellbeingPillar, WellbeingRelationship } from "@/lib/types/database";
+import type { WellbeingCampaignType, WellbeingPillar, WellbeingRelationship } from "@/lib/types/database";
 import {
   getConsentMessage,
   PILLAR_LABELS,
@@ -20,13 +20,13 @@ function ratingButtons(prefix: string) {
 
 export function consentCard() {
   return Card({
-    title: "Encuesta de bienestar",
+    title: "Wellbeing survey",
     children: [
       Text(getConsentMessage()),
       Actions([
         Button({
           id: "wellbeing:consent:accept",
-          label: "Acepto continuar",
+          label: "I agree to continue",
           style: "primary",
         }),
       ]),
@@ -39,7 +39,7 @@ export function pillarRatingCard(pillar: WellbeingPillar) {
     title: PILLAR_LABELS[pillar],
     children: [
       Text(PILLAR_QUESTIONS[pillar]),
-      Text("_Calificá del 1 (muy mal) al 5 (excelente)._"),
+      Text("_Rate from 1 (very poor) to 5 (excellent)._"),
       Actions(ratingButtons(`wellbeing:rate:${pillar}`)),
     ],
   });
@@ -47,18 +47,18 @@ export function pillarRatingCard(pillar: WellbeingPillar) {
 
 export function commentPromptCard(context: string) {
   return Card({
-    title: "Comentario opcional",
+    title: "Optional comment",
     children: [
-      Text(`¿Querés agregar un comentario sobre **${context}**?`),
+      Text(`Would you like to add a comment about **${context}**?`),
       Actions([
         Button({
           id: "wellbeing:comment:yes",
-          label: "Agregar comentario",
+          label: "Add comment",
           style: "primary",
         }),
         Button({
           id: "wellbeing:comment:skip",
-          label: "Omitir",
+          label: "Skip",
         }),
       ]),
     ],
@@ -67,29 +67,29 @@ export function commentPromptCard(context: string) {
 
 export function textInputPrompt(message: string) {
   return Card({
-    title: "Tu respuesta",
+    title: "Your response",
     children: [Text(message)],
   });
 }
 
 export function peerNamePrompt() {
   return textInputPrompt(
-    "Escribí el **nombre** de un compañero/a de equipo que quieras evaluar (1–5).",
+    "Enter the **name** of a teammate you would like to evaluate (1–5).",
   );
 }
 
 export function leaderNamePrompt() {
   return textInputPrompt(
-    "Escribí el **nombre** de tu superior o líder directo que quieras evaluar (1–5).",
+    "Enter the **name** of your manager or leader you would like to evaluate (1–5).",
   );
 }
 
 export function personRatingCard(relationship: WellbeingRelationship, name: string) {
   const rel = RELATIONSHIP_LABELS[relationship];
   return Card({
-    title: `Evaluación: ${name}`,
+    title: `Evaluation: ${name}`,
     children: [
-      Text(`¿Cómo calificarías a **${name}** como ${rel}?`),
+      Text(`How would you rate **${name}** as a ${rel}?`),
       Actions(ratingButtons(`wellbeing:person_rate:${relationship}`)),
     ],
   });
@@ -97,18 +97,18 @@ export function personRatingCard(relationship: WellbeingRelationship, name: stri
 
 export function moreEvalPromptCard() {
   return Card({
-    title: "¿Evaluar a alguien más?",
+    title: "Evaluate someone else?",
     children: [
-      Text("¿Querés evaluar a otra persona antes de finalizar?"),
+      Text("Would you like to evaluate another person before finishing?"),
       Actions([
         Button({
           id: "wellbeing:more_eval:yes",
-          label: "Sí, evaluar a alguien más",
+          label: "Yes, evaluate someone else",
           style: "primary",
         }),
         Button({
           id: "wellbeing:more_eval:no",
-          label: "No, finalizar encuesta",
+          label: "No, finish survey",
         }),
       ]),
     ],
@@ -117,18 +117,18 @@ export function moreEvalPromptCard() {
 
 export function extraRelationshipCard() {
   return Card({
-    title: "Tipo de evaluación",
+    title: "Evaluation type",
     children: [
-      Text("¿Esta persona es un compañero/a o un superior?"),
+      Text("Is this person a teammate or a manager?"),
       Actions([
         Button({
           id: "wellbeing:relationship:peer",
-          label: "Compañero/a",
+          label: "Teammate",
           style: "primary",
         }),
         Button({
           id: "wellbeing:relationship:leader",
-          label: "Superior / líder",
+          label: "Manager / leader",
         }),
       ]),
     ],
@@ -137,20 +137,27 @@ export function extraRelationshipCard() {
 
 export function extraNamePrompt(relationship: WellbeingRelationship) {
   const rel = RELATIONSHIP_LABELS[relationship];
-  return textInputPrompt(`Escribí el **nombre** del ${rel} que querés evaluar.`);
+  return textInputPrompt(`Enter the **name** of the ${rel} you want to evaluate.`);
 }
 
-export function campaignStartCard(campaignName: string, campaignId: string) {
+export function campaignStartCard(
+  campaignName: string,
+  campaignId: string,
+  campaignType: WellbeingCampaignType = "wellbeing",
+) {
+  const intro =
+    campaignType === "project_evaluation"
+      ? "Your organization invites you to complete a project evaluation survey. Your feedback is confidential and helps improve team performance."
+      : "Your organization invites you to complete a brief wellbeing survey. Your feedback is confidential and helps improve the workplace experience.";
+
   return Card({
     title: campaignName,
     children: [
-      Text(
-        "Tu organización te invita a completar una breve encuesta de bienestar. Tu feedback es confidencial y ayuda a mejorar la experiencia laboral.",
-      ),
+      Text(intro),
       Actions([
         Button({
           id: `wellbeing:campaign:start:${campaignId}`,
-          label: "Comenzar encuesta",
+          label: "Start survey",
           style: "primary",
         }),
       ]),

@@ -1,4 +1,4 @@
-import type { Profile } from "@/lib/types/database";
+import type { Profile, WellbeingCampaignType } from "@/lib/types/database";
 import type { WellbeingCopyContext } from "@/lib/wellbeing/assistant-config";
 import {
   getGuildLink,
@@ -92,10 +92,27 @@ export async function beginSurveyFromInteraction(options: {
     }
     const already = await hasCampaignSubmission(profile.id, campaignId);
     if (already) return null;
+
+    return createSession({
+      profileId: profile.id,
+      organizationId,
+      discordThreadKey,
+      source,
+      campaignId,
+      campaignType: (campaign.campaign_type as WellbeingCampaignType) ?? "wellbeing",
+    });
   }
 
   const existing = await findInProgressSession(profile.id, discordThreadKey);
   if (existing) return existing;
+
+  let campaignType: WellbeingCampaignType = "wellbeing";
+  if (source === "encuesta") {
+    const active = await getActiveCampaign(organizationId);
+    if (active?.campaign_type) {
+      campaignType = active.campaign_type as WellbeingCampaignType;
+    }
+  }
 
   return createSession({
     profileId: profile.id,
@@ -103,6 +120,7 @@ export async function beginSurveyFromInteraction(options: {
     discordThreadKey,
     source,
     campaignId,
+    campaignType,
   });
 }
 

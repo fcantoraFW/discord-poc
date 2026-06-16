@@ -20,7 +20,13 @@ import {
   continueButtonRow,
   openActionId,
 } from "@/lib/wellbeing/modals/build";
+import { buildProjectEvalModal } from "@/lib/wellbeing/modals/project-build";
+import {
+  getProjectEvalFirstOpenAction,
+  getProjectEvalFirstStep,
+} from "@/lib/wellbeing/modals/project-wizard";
 import { handleWellbeingDiscordInteraction } from "@/lib/wellbeing/modals/wizard";
+import { getProjectEvalConsentMessage } from "@/lib/wellbeing/project-eval-template";
 import { getConsentMessage } from "@/lib/wellbeing/template";
 
 export type WellbeingRouteResult =
@@ -35,8 +41,13 @@ function threadKey(interaction: DiscordInteractionPayload): string {
 function isModalOpenAction(actionId: string): boolean {
   return (
     actionId.startsWith("wellbeing:open:") ||
-    actionId.startsWith("wellbeing:edit:")
+    actionId.startsWith("wellbeing:edit:") ||
+    actionId.startsWith("wellbeing:role:")
   );
+}
+
+function isProjectEvalSession(session: { state: { campaignType?: string } }): boolean {
+  return session.state.campaignType === "project_evaluation";
 }
 
 async function handleSlashEncuesta(
@@ -65,14 +76,20 @@ async function handleSlashEncuesta(
 
   if (!session) {
     await sendInteractionFollowup(interaction.token, {
-      content: "Ya completaste la encuesta de esta campaña. ¡Gracias!",
+      content: "You already completed the survey for this campaign. Thank you!",
     });
     return { kind: "handled" };
   }
 
+  const projectEval = isProjectEvalSession(session);
   await sendInteractionFollowup(interaction.token, {
-    content: getConsentMessage(copy ?? undefined),
-    components: continueButtonRow(openActionId("workload"), "Comenzar encuesta"),
+    content: projectEval
+      ? getProjectEvalConsentMessage(copy ?? undefined)
+      : getConsentMessage(copy ?? undefined),
+    components: continueButtonRow(
+      projectEval ? getProjectEvalFirstOpenAction() : openActionId("workload"),
+      "Start survey",
+    ),
   });
 
   return { kind: "handled" };
@@ -105,14 +122,18 @@ async function handleCampaignStart(
   if (!session) {
     await deferInteraction(interaction);
     await sendInteractionFollowup(interaction.token, {
-      content: "Ya completaste la encuesta de esta campaña. ¡Gracias!",
+      content: "You already completed the survey for this campaign. Thank you!",
     });
     return { kind: "handled" };
   }
 
+  const firstModal = isProjectEvalSession(session)
+    ? buildProjectEvalModal(getProjectEvalFirstStep())
+    : buildWizardModal("workload");
+
   return {
     kind: "respond",
-    body: buildWizardModal("workload"),
+    body: firstModal,
   };
 }
 
@@ -137,21 +158,17 @@ async function handleComponent(
       return { kind: "handled" };
     }
 
-    const stepMatch =
-      actionId.match(/^wellbeing:open:(\w+)$/) ??
-      actionId.match(/^wellbeing:edit:(\w+)$/) ??
-      actionId.match(/^wellbeing:open:extra:(peer|leader)$/);
+    const { findInProgressSession, updateSession } = await import("@/lib/wellbeing/session-store");
+    const session = await findInProgressSession(ctx.profile.id, interaction.channel_id);
+    if (!session) {
+      await deferInteraction(interaction);
+      await sendInteractionFollowup(interaction.token, {
+        content: "No active survey. Use `/encuesta` or the campaign button.",
+      });
+      return { kind: "handled" };
+    }
 
     if (actionId.match(/^wellbeing:open:extra:(peer|leader)$/)) {
-      const { findInProgressSession, updateSession } = await import("@/lib/wellbeing/session-store");
-      const session = await findInProgressSession(ctx.profile.id, interaction.channel_id);
-      if (!session) {
-        await deferInteraction(interaction);
-        await sendInteractionFollowup(interaction.token, {
-          content: "No hay encuesta activa. Usá `/encuesta` o el botón de la campaña.",
-        });
-        return { kind: "handled" };
-      }
       const rel = actionId.endsWith(":leader") ? "leader" : "peer";
       await updateSession(session.id, {
         state: { ...session.state, pendingRelationship: rel },
@@ -160,17 +177,49 @@ async function handleComponent(
       return { kind: "respond", body: buildWizardModal("extra") };
     }
 
+    if (actionId.startsWith("wellbeing:role:")) {
+      const { parseTeamMemberRole } = await import("@/lib/wellbeing/modals/project-build");
+      const role = parseTeamMemberRole(actionId);
+      if (role && isProjectEvalSession(session)) {
+        const modalStep =
+          (session.state.teamEvaluations?.length ?? 0) > 0 ? "extra" : "team_name";
+        await updateSession(session.id, {
+          state: {
+            ...session.state,
+            pendingRole: role,
+            pendingTeamEval: { role },
+          },
+          current_step: modalStep,
+        });
+        return { kind: "respond", body: buildProjectEvalModal(modalStep) };
+      }
+    }
+
+    const stepMatch =
+      actionId.match(/^wellbeing:open:(.+)$/) ?? actionId.match(/^wellbeing:edit:(.+)$/);
     const step = stepMatch?.[1];
     if (!step || step === "extra") return { kind: "none" };
 
-    const { findInProgressSession } = await import("@/lib/wellbeing/session-store");
-    const session = await findInProgressSession(ctx.profile.id, interaction.channel_id);
-    if (!session) {
-      await deferInteraction(interaction);
-      await sendInteractionFollowup(interaction.token, {
-        content: "No hay encuesta activa. Usá `/encuesta` o el botón de la campaña.",
-      });
-      return { kind: "handled" };
+    if (isProjectEvalSession(session)) {
+      const { parseProjectOpenStep } = await import("@/lib/wellbeing/modals/project-build");
+      const projectStep = parseProjectOpenStep(actionId);
+      if (projectStep) {
+        if (projectStep === "team_name" && actionId.startsWith("wellbeing:edit:")) {
+          await deferInteraction(interaction);
+          const copy = await getWellbeingCopyContext(ctx.organizationId);
+          const after = async () => {
+            await handleWellbeingDiscordInteraction(interaction, {
+              session,
+              copy,
+              organizationId: ctx.organizationId,
+            });
+          };
+          if (options?.waitUntil) options.waitUntil(after());
+          else await after();
+          return { kind: "handled" };
+        }
+        return { kind: "respond", body: buildProjectEvalModal(projectStep) };
+      }
     }
 
     return {
@@ -191,7 +240,7 @@ async function handleComponent(
   if (!session) {
     await deferInteraction(interaction);
     await sendInteractionFollowup(interaction.token, {
-      content: "No hay encuesta activa. Usá `/encuesta` o el botón de la campaña.",
+      content: "No active survey. Use `/encuesta` or the campaign button.",
     });
     return { kind: "handled" };
   }
@@ -208,7 +257,7 @@ async function handleComponent(
         organizationId: ctx.organizationId,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error al procesar la encuesta";
+      const msg = err instanceof Error ? err.message : "Error processing the survey";
       console.error("[wellbeing] component failed", { actionId, error: msg });
       await sendInteractionFollowup(interaction.token, { content: `⚠️ ${msg}` });
     }
@@ -242,7 +291,7 @@ async function handleModalSubmit(
   if (!session) {
     await deferInteraction(interaction);
     await sendInteractionFollowup(interaction.token, {
-      content: "No hay encuesta activa. Usá `/encuesta` o el botón de la campaña.",
+      content: "No active survey. Use `/encuesta` or the campaign button.",
     });
     return { kind: "handled" };
   }
@@ -258,7 +307,7 @@ async function handleModalSubmit(
         organizationId: ctx.organizationId,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error al procesar la encuesta";
+      const msg = err instanceof Error ? err.message : "Error processing the survey";
       console.error("[wellbeing] modal submit failed", { error: msg });
       await sendInteractionFollowup(interaction.token, { content: `⚠️ ${msg}` });
     }

@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
+  WellbeingCampaignType,
   WellbeingSession,
   WellbeingSessionState,
   WellbeingSubmissionSource,
@@ -12,7 +13,7 @@ function parseSession(row: Record<string, unknown>): WellbeingSession {
   const state =
     rawState && typeof rawState === "object" && !Array.isArray(rawState)
       ? (rawState as WellbeingSessionState)
-      : { pillarRatings: {}, personEvaluations: [] };
+      : emptySessionState();
 
   return {
     ...(row as WellbeingSession),
@@ -69,9 +70,12 @@ export async function createSession(options: {
   discordThreadKey: string;
   source: WellbeingSubmissionSource;
   campaignId?: string | null;
+  campaignType?: WellbeingCampaignType;
 }): Promise<WellbeingSession> {
   const admin = createAdminClient();
-  const initialState = emptySessionState();
+  const campaignType = options.campaignType ?? "wellbeing";
+  const initialState = emptySessionState(campaignType);
+  const firstStep = campaignType === "project_evaluation" ? "project_name" : "workload";
 
   const { data, error } = await admin
     .from("wellbeing_sessions")
@@ -81,7 +85,7 @@ export async function createSession(options: {
       discord_thread_key: options.discordThreadKey,
       campaign_id: options.campaignId ?? null,
       source: options.source,
-      current_step: "workload",
+      current_step: firstStep,
       state: initialState,
       status: "in_progress",
     })

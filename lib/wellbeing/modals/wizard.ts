@@ -19,6 +19,7 @@ import {
   type ModalWizardStep,
   yesNoRow,
 } from "@/lib/wellbeing/modals/build";
+import { handleProjectEvalDiscordInteraction } from "@/lib/wellbeing/modals/project-wizard";
 import {
   applyPersonEvaluation,
   applyPillarComment,
@@ -40,7 +41,15 @@ function parseOpenStep(actionId: string): ModalWizardStep | null {
 
 function parseModalStep(customId: string | undefined): ModalWizardStep | null {
   const m = customId?.match(/^wellbeing:modal:(\w+)$/);
-  return m ? (m[1] as ModalWizardStep) : null;
+  if (!m) return null;
+  const step = m[1];
+  const wellbeingSteps: ModalWizardStep[] = [
+    ...PILLAR_MODAL_STEPS,
+    "peer",
+    "leader",
+    "extra",
+  ];
+  return wellbeingSteps.includes(step as ModalWizardStep) ? (step as ModalWizardStep) : null;
 }
 
 function parseExtraRelationship(actionId: string): "peer" | "leader" | null {
@@ -49,7 +58,7 @@ function parseExtraRelationship(actionId: string): "peer" | "leader" | null {
 }
 
 function formatReviewSummary(session: WellbeingSession): string {
-  const lines: string[] = ["**Resumen de tu encuesta**", ""];
+  const lines: string[] = ["**Survey summary**", ""];
   for (const pillar of PILLAR_MODAL_STEPS) {
     const r = session.state.pillarRatings[pillar];
     lines.push(
@@ -57,14 +66,14 @@ function formatReviewSummary(session: WellbeingSession): string {
     );
   }
   if (session.state.personEvaluations.length) {
-    lines.push("", "**Personas evaluadas:**");
+    lines.push("", "**People evaluated:**");
     for (const p of session.state.personEvaluations) {
       lines.push(
         `• ${p.evaluateeName} (${p.relationship}): ${p.rating}/5${p.comment ? ` — _${p.comment}_` : ""}`,
       );
     }
   }
-  lines.push("", "Podés editar una sección o enviar la encuesta.");
+  lines.push("", "You can edit a section or submit the survey.");
   return lines.join("\n");
 }
 
@@ -72,7 +81,7 @@ function reviewEditButtons() {
   const rows = PILLAR_MODAL_STEPS.map((pillar) => ({
     type: 2,
     style: 2,
-    label: `Editar ${PILLAR_LABELS[pillar].slice(0, 20)}`,
+    label: `Edit ${PILLAR_LABELS[pillar].slice(0, 20)}`,
     custom_id: editActionId(pillar),
   }));
   const chunks: unknown[] = [];
@@ -82,14 +91,14 @@ function reviewEditButtons() {
   chunks.push({
     type: 1,
     components: [
-      { type: 2, style: 2, label: "Editar compañero/a", custom_id: editActionId("peer") },
-      { type: 2, style: 2, label: "Editar superior", custom_id: editActionId("leader") },
+      { type: 2, style: 2, label: "Edit teammate", custom_id: editActionId("peer") },
+      { type: 2, style: 2, label: "Edit manager", custom_id: editActionId("leader") },
     ],
   });
   chunks.push({
     type: 1,
     components: [
-      { type: 2, style: 3, label: "Enviar encuesta", custom_id: "wellbeing:finalize" },
+      { type: 2, style: 3, label: "Submit survey", custom_id: "wellbeing:finalize" },
     ],
   });
   return chunks;
@@ -111,7 +120,7 @@ async function promptNext(
 ): Promise<void> {
   if (next === "more_eval") {
     await sendInteractionFollowup(interaction.token, {
-      content: "¿Querés evaluar a otra persona?",
+      content: "Would you like to evaluate another person?",
       components: yesNoRow("wellbeing:more:yes", "wellbeing:more:no"),
     });
     await updateSession(session.id, { current_step: "more_eval" });
@@ -134,9 +143,11 @@ async function promptNext(
     return;
   }
 
-  const label = editing ? `Editar: ${PILLAR_LABELS[next as keyof typeof PILLAR_LABELS] ?? next}` : `Continuar: ${PILLAR_LABELS[next as keyof typeof PILLAR_LABELS] ?? next}`;
+  const label = editing
+    ? `Edit: ${PILLAR_LABELS[next as keyof typeof PILLAR_LABELS] ?? next}`
+    : `Continue: ${PILLAR_LABELS[next as keyof typeof PILLAR_LABELS] ?? next}`;
   await sendInteractionFollowup(interaction.token, {
-    content: editing ? "Abrí el formulario para editar esta sección." : "Paso guardado. Continuá con el siguiente.",
+    content: editing ? "Open the form to edit this section." : "Step saved. Continue with the next one.",
     components: continueButtonRow(openActionId(next), label.slice(0, 80)),
   });
   await updateSession(session.id, { current_step: next });
@@ -154,7 +165,7 @@ async function applyModalSubmit(
   if (PILLAR_MODAL_STEPS.includes(step as (typeof PILLAR_MODAL_STEPS)[number])) {
     const pillar = step as (typeof PILLAR_MODAL_STEPS)[number];
     const rating = parseRating(fields.rating);
-    if (rating == null) throw new Error("La calificación debe ser un número del 1 al 5.");
+    if (rating == null) throw new Error("Rating must be a number from 1 to 5.");
     state = applyPillarRating(state, pillar, rating);
     const comment = fields.comment?.trim();
     if (comment) state = applyPillarComment(state, pillar, comment);
@@ -163,15 +174,15 @@ async function applyModalSubmit(
   }
 
   const name = fields.name?.trim();
-  if (!name) throw new Error("El nombre es obligatorio.");
+  if (!name) throw new Error("Name is required.");
   const rating = parseRating(fields.rating);
-  if (rating == null) throw new Error("La calificación debe ser del 1 al 5.");
+  if (rating == null) throw new Error("Rating must be from 1 to 5.");
 
   const rel =
     step === "extra"
       ? (extraRelationship ?? state.pendingRelationship ?? "peer")
       : relationshipForPersonStep(step);
-  if (!rel) throw new Error("Tipo de evaluación inválido.");
+  if (!rel) throw new Error("Invalid evaluation type.");
 
   if (step === "peer" || step === "leader") {
     const idx = state.personEvaluations.findIndex((e) => e.relationship === rel);
@@ -223,12 +234,11 @@ async function applyModalSubmit(
   return { session: updated, editing };
 }
 
-export async function handleWellbeingDiscordInteraction(
+async function handleWellbeingFlowInteraction(
   interaction: DiscordInteractionPayload,
   options: {
     session: WellbeingSession;
     copy: WellbeingCopyContext | null;
-    organizationId: string;
   },
 ): Promise<boolean> {
   const actionId = interaction.data?.custom_id ?? "";
@@ -237,13 +247,13 @@ export async function handleWellbeingDiscordInteraction(
   if (interaction.type === 3) {
     if (actionId === "wellbeing:more:yes") {
       await sendInteractionFollowup(interaction.token, {
-        content: "¿Evaluás a un compañero/a o a un superior?",
+        content: "Are you evaluating a teammate or a manager?",
         components: [
           {
             type: 1,
             components: [
-              { type: 2, style: 1, label: "Compañero/a", custom_id: "wellbeing:open:extra:peer" },
-              { type: 2, style: 2, label: "Superior", custom_id: "wellbeing:open:extra:leader" },
+              { type: 2, style: 1, label: "Teammate", custom_id: "wellbeing:open:extra:peer" },
+              { type: 2, style: 2, label: "Manager", custom_id: "wellbeing:open:extra:leader" },
             ],
           },
         ],
@@ -304,3 +314,22 @@ export async function handleWellbeingDiscordInteraction(
 
   return false;
 }
+
+export async function handleWellbeingDiscordInteraction(
+  interaction: DiscordInteractionPayload,
+  options: {
+    session: WellbeingSession;
+    copy: WellbeingCopyContext | null;
+    organizationId: string;
+  },
+): Promise<boolean> {
+  if (options.session.state.campaignType === "project_evaluation") {
+    return handleProjectEvalDiscordInteraction(interaction, {
+      session: options.session,
+      copy: options.copy,
+    });
+  }
+  return handleWellbeingFlowInteraction(interaction, options);
+}
+
+export { parseOpenStep, parseModalStep };

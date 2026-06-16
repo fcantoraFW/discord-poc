@@ -9,35 +9,35 @@ export const WELLBEING_PILLARS: WellbeingPillar[] = [
 ];
 
 export const PILLAR_LABELS: Record<WellbeingPillar, string> = {
-  workload: "Carga de trabajo",
-  climate: "Clima laboral y relaciones",
-  wellbeing: "Bienestar emocional y físico",
-  recognition: "Reconocimiento y desarrollo",
+  workload: "Workload",
+  climate: "Work climate & relationships",
+  wellbeing: "Emotional & physical wellbeing",
+  recognition: "Recognition & development",
 };
 
 export const PILLAR_QUESTIONS: Record<WellbeingPillar, string> = {
   workload:
-    "¿Cómo calificarías el equilibrio entre tus tareas asignadas y el tiempo disponible?",
+    "How would you rate the balance between your assigned tasks and available time?",
   climate:
-    "¿Cómo calificarías la comunicación con tu líder y la dinámica con tu equipo?",
+    "How would you rate communication with your leader and dynamics with your team?",
   wellbeing:
-    "¿Cómo calificarías tu nivel de estrés y la percepción de apoyo de la empresa?",
+    "How would you rate your stress level and perceived support from the company?",
   recognition:
-    "¿Cómo calificarías el reconocimiento que recibís y tus oportunidades de crecimiento?",
+    "How would you rate the recognition you receive and your growth opportunities?",
 };
 
 export const RELATIONSHIP_LABELS: Record<WellbeingRelationship, string> = {
-  peer: "compañero/a de equipo",
-  leader: "superior / líder",
+  peer: "teammate",
+  leader: "manager / leader",
 };
 
 export function getPaeResourcesText(): string {
   const url = process.env.WELLBEING_PAE_URL?.trim();
   const text =
     process.env.WELLBEING_PAE_TEXT?.trim() ??
-    "Si necesitás apoyo, contactá al programa de asistencia al empleado (PAE) de tu organización.";
+    "If you need support, contact your organization's Employee Assistance Program (EAP).";
   if (url) {
-    return `${text}\n\nRecursos: ${url}`;
+    return `${text}\n\nResources: ${url}`;
   }
   return text;
 }
@@ -45,18 +45,18 @@ export function getPaeResourcesText(): string {
 type CopyInput = Pick<WellbeingCopyContext, "assistantName" | "orgName" | "instructions" | "context">;
 
 export function getConsentMessage(copy?: CopyInput): string {
-  const assistantName = copy?.assistantName ?? "tu asistente de bienestar organizacional";
-  const orgLine = copy?.orgName ? ` de **${copy.orgName}**` : "";
+  const assistantName = copy?.assistantName ?? "your organizational wellbeing assistant";
+  const orgLine = copy?.orgName ? ` at **${copy.orgName}**` : "";
   const intro = copy?.instructions?.trim()
     ? copy.instructions.trim()
     : [
-        `Hola, soy **${assistantName}**${orgLine}.`,
+        `Hi, I'm **${assistantName}**${orgLine}.`,
         "",
-        "**Propósito:** recopilar información sobre tu experiencia laboral para ayudar a HR a mejorar el clima y prevenir el agotamiento.",
+        "**Purpose:** collect information about your work experience to help HR improve the workplace and prevent burnout.",
         "",
-        "**Confidencialidad:** tu información será tratada con privacidad por el equipo de People.",
+        "**Confidentiality:** your information will be handled privately by the People team.",
         "",
-        "**Importante:** no realizo diagnósticos de salud mental. Si estás pasando por un momento difícil, te orientaré hacia recursos de apoyo al finalizar.",
+        "**Important:** I do not provide mental health diagnoses. If you're going through a difficult time, I'll point you to support resources when you finish.",
       ].join("\n");
 
   const contextBlock = copy?.context?.trim()
@@ -67,25 +67,25 @@ export function getConsentMessage(copy?: CopyInput): string {
     intro,
     contextBlock,
     "",
-    "La encuesta toma unos minutos. Calificá del 1 al 5 en cada sección y podés agregar comentarios opcionales.",
+    "The survey takes a few minutes. Rate each section from 1 to 5 and you can add optional comments.",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 export function getClosingMessage(copy?: CopyInput): string {
-  const orgLine = copy?.orgName ? ` Tu feedback ayuda a **${copy.orgName}**.` : "";
+  const orgLine = copy?.orgName ? ` Your feedback helps **${copy.orgName}**.` : "";
   return [
-    `¡Gracias por completar la encuesta!${orgLine}`,
+    `Thank you for completing the survey!${orgLine}`,
     "",
     getPaeResourcesText(),
   ].join("\n");
 }
 
 export const RATING_LABELS: Record<number, string> = {
-  1: "1 — Muy mal",
-  2: "2 — Mal",
-  3: "3 — Regular",
-  4: "4 — Bien",
-  5: "5 — Excelente",
+  1: "1 — Very poor",
+  2: "2 — Poor",
+  3: "3 — Fair",
+  4: "4 — Good",
+  5: "5 — Excellent",
 };

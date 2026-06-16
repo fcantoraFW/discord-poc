@@ -5,6 +5,7 @@ import { canManageOrganization } from "@/lib/auth/roles";
 import { requireProfile } from "@/lib/auth/profile";
 import { campaignStartCard } from "@/lib/wellbeing/cards";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { WellbeingCampaignType } from "@/lib/types/database";
 
 async function assertCanManageOrg(organizationId: string) {
   const profile = await requireProfile();
@@ -14,7 +15,15 @@ async function assertCanManageOrg(organizationId: string) {
   return profile;
 }
 
-export async function launchWellbeingCampaign(organizationId: string) {
+const CAMPAIGN_DEFAULT_NAMES: Record<WellbeingCampaignType, string> = {
+  wellbeing: "Encuesta de bienestar",
+  project_evaluation: "Evaluación de proyecto",
+};
+
+export async function launchWellbeingCampaign(
+  organizationId: string,
+  campaignType: WellbeingCampaignType = "wellbeing",
+) {
   const adminProfile = await assertCanManageOrg(organizationId);
   const admin = createAdminClient();
 
@@ -37,7 +46,8 @@ export async function launchWellbeingCampaign(organizationId: string) {
     .from("wellbeing_campaigns")
     .insert({
       organization_id: organizationId,
-      name: "Encuesta de bienestar",
+      name: CAMPAIGN_DEFAULT_NAMES[campaignType],
+      campaign_type: campaignType,
       status: "active",
       started_by: adminProfile.id,
       started_at: now,
@@ -65,7 +75,9 @@ export async function launchWellbeingCampaign(organizationId: string) {
     if (!member.discord_user_id) continue;
     try {
       const dmThread = await bot.openDM(member.discord_user_id);
-      await dmThread.post(campaignStartCard(campaign.name, campaign.id));
+      await dmThread.post(
+        campaignStartCard(campaign.name, campaign.id, campaignType),
+      );
       sent++;
     } catch (err) {
       console.error("[wellbeing-campaign] DM failed", {

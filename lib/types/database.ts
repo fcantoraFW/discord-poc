@@ -59,11 +59,19 @@ export type WellbeingRelationship = "peer" | "leader";
 export type WellbeingSessionStatus = "in_progress" | "completed" | "abandoned";
 export type WellbeingCampaignStatus = "draft" | "active" | "closed";
 export type WellbeingSubmissionSource = "encuesta" | "campaign";
+export type WellbeingCampaignType = "wellbeing" | "project_evaluation";
+export type TeamMemberRole =
+  | "design"
+  | "qa"
+  | "product_manager"
+  | "jr_dev"
+  | "sr_dev";
 
 export type WellbeingCampaign = {
   id: string;
   organization_id: string;
   name: string;
+  campaign_type: WellbeingCampaignType;
   status: WellbeingCampaignStatus;
   started_by: string | null;
   started_at: string | null;
@@ -98,11 +106,40 @@ export type PersonEvaluationDraft = {
   comment?: string;
 };
 
+export type ProjectSelfEvalDraft = {
+  projectName?: string;
+  overallSatisfaction?: number;
+  keyContributions?: string;
+  didWell?: string;
+  challenges?: string;
+  couldDoBetter?: string;
+  learned?: string;
+  additionalComments?: string;
+};
+
+export type TeamMemberEvalDraft = {
+  evaluateeName: string;
+  role: TeamMemberRole;
+  didWell: string;
+  couldDoBetter: string;
+  communicationRating: number;
+  collaborationRating: number;
+  problemSolvingRating: number;
+  overallRating: number;
+  additionalComments?: string;
+};
+
 export type WellbeingSessionState = {
+  campaignType?: WellbeingCampaignType;
   pillarRatings: Partial<Record<WellbeingPillar, PillarRatingDraft>>;
   personEvaluations: PersonEvaluationDraft[];
+  projectSelfEval?: ProjectSelfEvalDraft;
+  teamEvaluations?: TeamMemberEvalDraft[];
   pendingPillar?: WellbeingPillar;
   pendingRelationship?: WellbeingRelationship;
+  pendingRole?: TeamMemberRole;
+  pendingTeamEval?: Partial<TeamMemberEvalDraft>;
+  pendingTeamEvalIndex?: number;
   personDraft?: {
     evaluateeName?: string;
     relationship?: WellbeingRelationship;
@@ -136,4 +173,32 @@ export type WellbeingPersonEvaluation = {
   relationship: WellbeingRelationship;
   rating: number;
   comment: string | null;
+};
+
+export type WellbeingProjectSelfEvaluation = {
+  id: string;
+  submission_id: string;
+  project_name: string;
+  overall_satisfaction: number;
+  key_contributions: string;
+  did_well: string;
+  challenges: string;
+  could_do_better: string;
+  learned: string;
+  additional_comments: string | null;
+};
+
+export type WellbeingTeamMemberEvaluation = {
+  id: string;
+  submission_id: string;
+  evaluator_profile_id: string;
+  evaluatee_name: string;
+  role: TeamMemberRole;
+  did_well: string;
+  could_do_better: string;
+  communication_rating: number;
+  collaboration_rating: number;
+  problem_solving_rating: number;
+  overall_rating: number;
+  additional_comments: string | null;
 };
