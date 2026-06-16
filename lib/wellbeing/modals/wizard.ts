@@ -1,8 +1,6 @@
 import type { WellbeingSession, WellbeingSessionState } from "@/lib/types/database";
 import type { WellbeingCopyContext } from "@/lib/wellbeing/assistant-config";
 import {
-  deferInteraction,
-  getInteractionUserId,
   parseModalFieldValues,
   respondToInteractionCallback,
   sendInteractionFollowup,
@@ -238,7 +236,6 @@ export async function handleWellbeingDiscordInteraction(
 
   if (interaction.type === 3) {
     if (actionId === "wellbeing:more:yes") {
-      await deferInteraction(interaction);
       await sendInteractionFollowup(interaction.token, {
         content: "¿Evaluás a un compañero/a o a un superior?",
         components: [
@@ -255,14 +252,12 @@ export async function handleWellbeingDiscordInteraction(
     }
 
     if (actionId === "wellbeing:more:no") {
-      await deferInteraction(interaction);
       const updated = await updateSession(session.id, { current_step: "review" });
       await promptNext(interaction, updated, copy, "review");
       return true;
     }
 
     if (actionId === "wellbeing:finalize") {
-      await deferInteraction(interaction);
       const fresh = await updateSession(session.id, { current_step: "complete" });
       await promptNext(interaction, fresh, copy, "done");
       return true;
@@ -288,8 +283,6 @@ export async function handleWellbeingDiscordInteraction(
   if (interaction.type === 5) {
     const step = parseModalStep(actionId);
     if (!step) return false;
-
-    await deferInteraction(interaction);
 
     const fields = parseModalFieldValues(interaction);
     const { session: updated, editing } = await applyModalSubmit(
