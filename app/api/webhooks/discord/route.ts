@@ -1,4 +1,9 @@
+import { after } from "next/server";
 import { getChatBot } from "@/lib/discord/bot";
+import {
+  handleForwardedGatewayInteraction,
+  parseGatewayInteractionEvent,
+} from "@/lib/discord/gateway-interaction";
 
 /** Cursor Cloud can take minutes; match /api/chat. */
 export const maxDuration = 300;
@@ -26,8 +31,33 @@ function normalizeGatewayWebhookBody(rawBody: string): string {
   return rawBody;
 }
 
+const webhookOptions = {
+  waitUntil: (task: Promise<unknown>) => {
+    after(() => task);
+  },
+};
+
 export async function POST(request: Request) {
   const rawBody = await request.text();
+  const gatewayToken = request.headers.get("x-discord-gateway-token");
+
+  if (gatewayToken) {
+    const interaction = parseGatewayInteractionEvent(rawBody);
+    if (interaction) {
+      try {
+        await handleForwardedGatewayInteraction(interaction, webhookOptions);
+        return Response.json({ ok: true });
+      } catch (err) {
+        console.error("[discord-webhook] gateway interaction failed", {
+          error: err instanceof Error ? err.message : String(err),
+          interactionId: interaction.id,
+          interactionType: interaction.type,
+        });
+        return Response.json({ error: "gateway interaction failed" }, { status: 500 });
+      }
+    }
+  }
+
   const normalizedBody = normalizeGatewayWebhookBody(rawBody);
 
   const normalizedRequest = new Request(request.url, {
@@ -38,7 +68,7 @@ export async function POST(request: Request) {
 
   try {
     const bot = await getChatBot();
-    return bot.webhooks.discord(normalizedRequest);
+    return bot.webhooks.discord(normalizedRequest, webhookOptions);
   } catch (err) {
     console.error("[discord-webhook] unhandled error", {
       error: err instanceof Error ? err.message : String(err),
