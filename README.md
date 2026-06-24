@@ -224,7 +224,6 @@ scripts/check-production-env.mjs
 railway.toml
 .env.gateway.example
 docs/PRODUCTION.md
-.github/workflows/discord-gateway.yml
 ```
 
 ---
